@@ -14,8 +14,10 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as KiranaEssentialsRouteImport } from './routes/kirana-essentials'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as ShopFreshRouteImport } from './routes/shop-fresh'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminBannersRouteImport } from './routes/admin.banners'
@@ -57,6 +59,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
   path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KiranaEssentialsRoute = KiranaEssentialsRouteImport.update({
+  id: '/kirana-essentials',
+  path: '/kirana-essentials',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersRoute = OrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -65,6 +72,11 @@ const OrdersRoute = OrdersRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopFreshRoute = ShopFreshRouteImport.update({
+  id: '/shop-fresh',
+  path: '/shop-fresh',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WishlistRoute = WishlistRouteImport.update({
@@ -149,8 +161,10 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/kirana-essentials': typeof KiranaEssentialsRoute
   '/orders': typeof OrdersRoute
   '/search': typeof SearchRoute
+  '/shop-fresh': typeof ShopFreshRoute
   '/wishlist': typeof WishlistRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -172,8 +186,10 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/kirana-essentials': typeof KiranaEssentialsRoute
   '/orders': typeof OrdersRoute
   '/search': typeof SearchRoute
+  '/shop-fresh': typeof ShopFreshRoute
   '/wishlist': typeof WishlistRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -197,8 +213,10 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/kirana-essentials': typeof KiranaEssentialsRoute
   '/orders': typeof OrdersRoute
   '/search': typeof SearchRoute
+  '/shop-fresh': typeof ShopFreshRoute
   '/wishlist': typeof WishlistRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -223,8 +241,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/kirana-essentials'
     | '/orders'
     | '/search'
+    | '/shop-fresh'
     | '/wishlist'
     | '/admin/banners'
     | '/admin/categories'
@@ -246,8 +266,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/kirana-essentials'
     | '/orders'
     | '/search'
+    | '/shop-fresh'
     | '/wishlist'
     | '/admin/banners'
     | '/admin/categories'
@@ -270,8 +292,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/kirana-essentials'
     | '/orders'
     | '/search'
+    | '/shop-fresh'
     | '/wishlist'
     | '/admin/banners'
     | '/admin/categories'
@@ -295,8 +319,10 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  KiranaEssentialsRoute: typeof KiranaEssentialsRoute
   OrdersRoute: typeof OrdersRoute
   SearchRoute: typeof SearchRoute
+  ShopFreshRoute: typeof ShopFreshRoute
   WishlistRoute: typeof WishlistRoute
   CategorySlugRoute: typeof CategorySlugRoute
   ProductSlugRoute: typeof ProductSlugRoute
@@ -339,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kirana-essentials': {
+      id: '/kirana-essentials'
+      path: '/kirana-essentials'
+      fullPath: '/kirana-essentials'
+      preLoaderRoute: typeof KiranaEssentialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders': {
       id: '/orders'
       path: '/orders'
@@ -351,6 +384,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop-fresh': {
+      id: '/shop-fresh'
+      path: '/shop-fresh'
+      fullPath: '/shop-fresh'
+      preLoaderRoute: typeof ShopFreshRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/wishlist': {
@@ -499,8 +539,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  KiranaEssentialsRoute: KiranaEssentialsRoute,
   OrdersRoute: OrdersRoute,
   SearchRoute: SearchRoute,
+  ShopFreshRoute: ShopFreshRoute,
   WishlistRoute: WishlistRoute,
   CategorySlugRoute: CategorySlugRoute,
   ProductSlugRoute: ProductSlugRoute,

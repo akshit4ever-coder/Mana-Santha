@@ -43,10 +43,10 @@ function Home() {
               <p className="mt-4 text-lg opacity-90">From farm-fresh produce to your favourite kirana brands — everything you need, delivered to your doorstep.</p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
-                  <Link to="/category/$slug" params={{ slug: "fruits-vegetables" }}>Shop Fresh</Link>
+                  <Link to="/shop-fresh">Shop Fresh</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="rounded-full border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-                  <Link to="/category/$slug" params={{ slug: "rice-atta-dals" }}>Kirana essentials</Link>
+                  <Link to="/kirana-essentials">Kirana essentials</Link>
                 </Button>
               </div>
             </div>
@@ -86,7 +86,13 @@ function Home() {
                 params={{ slug: c.slug }}
                 className="group flex flex-col items-center gap-2 rounded-xl border bg-card p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-fresh text-3xl">{c.icon}</div>
+                <div className="flex h-28 w-28 items-center justify-center overflow-hidden bg-gradient-fresh text-3xl">
+                  {c.image_url ? (
+                    <img src={c.image_url} alt={c.name} className="h-full w-full object-cover rounded-none" />
+                  ) : (
+                    c.icon
+                  )}
+                </div>
                 <div className="text-xs font-medium leading-tight">{c.name}</div>
               </Link>
             ))}

@@ -26,8 +26,8 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="container mx-auto flex h-16 items-center gap-4 px-4">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow">
-            <img src={LogoIcon} alt="Mana Santha" className="h-6 w-6 object-contain" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
+            <img src={LogoIcon} alt="Mana Santha" className="h-50 w-50 object-contain" />
           </div>
           <div className="hidden sm:block">
             <div className="text-lg font-bold leading-tight text-primary">Mana Santha</div>

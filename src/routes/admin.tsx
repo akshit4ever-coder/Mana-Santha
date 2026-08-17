@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Header } from "@/components/Layout/Header";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { adminSupabase } from "@/integrations/supabase/adminClient";
 import { Button } from "@/components/UI/button";
 import { Input } from "@/components/UI/input";
 import { Label } from "@/components/UI/label";
@@ -76,7 +77,7 @@ function AdminLoginForm() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await adminSupabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: password,
       });
@@ -91,7 +92,7 @@ function AdminLoginForm() {
       }
 
       // Verify the user's role
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData, error: roleError } = await adminSupabase
         .from("user_roles")
         .select("role")
         .eq("user_id", data.user.id)
@@ -205,23 +206,73 @@ function AdminLoginForm() {
 
 function AdminLayout() {
   const { user, isAdmin, loading, signOut } = useAuth();
+  const [adminUser, setAdminUser] = useState<any | null>(null);
+  const [adminLoading, setAdminLoading] = useState(true);
+  const [adminIsAdmin, setAdminIsAdmin] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
-  if (loading) {
+  // Track adminSupabase session separately so admin can be logged in concurrently
+  useEffect(() => {
+    let mounted = true;
+    adminSupabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setAdminUser(data.session?.user ?? null);
+      setAdminLoading(false);
+      if (data.session?.user) {
+        // verify role
+        adminSupabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id)
+          .eq("role", "admin")
+          .maybeSingle()
+          .then(({ data: r }) => {
+            if (!mounted) return;
+            setAdminIsAdmin(!!r);
+          })
+          .catch(() => setAdminIsAdmin(false));
+      }
+    });
+
+    const { data: sub } = adminSupabase.auth.onAuthStateChange((_, s) => {
+      setAdminUser(s?.user ?? null);
+      if (s?.user) {
+        adminSupabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", s.user.id)
+          .eq("role", "admin")
+          .maybeSingle()
+          .then(({ data: r }) => setAdminIsAdmin(!!r))
+          .catch(() => setAdminIsAdmin(false));
+      } else {
+        setAdminIsAdmin(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading || adminLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+  // Determine if admin is authenticated either via user session or admin client
+  const effectiveIsAdmin = isAdmin || adminIsAdmin;
 
-  // Not logged in -> show admin login form
-  if (!user) {
+  // Not logged in as either admin user or admin client -> show admin login form
+  if (!user && !adminUser) {
     return <AdminLoginForm />;
   }
 
-  // Logged in but NOT admin -> show 403 Access Denied
-  if (!isAdmin) {
+  // Logged in as non-admin (no admin session) -> show 403 Access Denied
+  if (!effectiveIsAdmin) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Header />
@@ -294,7 +345,7 @@ function AdminLayout() {
             })}
             <div className="mt-3 border-t pt-3">
               <p className="px-3 text-xs text-muted-foreground">
-                Logged in as <span className="font-medium text-foreground">{user.email}</span>
+                Logged in as <span className="font-medium text-foreground">{(adminUser && adminUser.email) ?? user?.email}</span>
               </p>
             </div>
           </nav>
