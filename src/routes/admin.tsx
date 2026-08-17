@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Layout/Header";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -214,37 +214,49 @@ function AdminLayout() {
   // Track adminSupabase session separately so admin can be logged in concurrently
   useEffect(() => {
     let mounted = true;
-    adminSupabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setAdminUser(data.session?.user ?? null);
-      setAdminLoading(false);
-      if (data.session?.user) {
-        // verify role
-        adminSupabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id)
-          .eq("role", "admin")
-          .maybeSingle()
-          .then(({ data: r }) => {
+    (async () => {
+      try {
+        const { data } = await adminSupabase.auth.getSession();
+        if (!mounted) return;
+        setAdminUser(data.session?.user ?? null);
+        setAdminLoading(false);
+        if (data.session?.user) {
+          try {
+            const res = await adminSupabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", data.session.user.id)
+              .eq("role", "admin")
+              .maybeSingle();
             if (!mounted) return;
-            setAdminIsAdmin(!!r);
-          })
-          .catch(() => setAdminIsAdmin(false));
+            setAdminIsAdmin(!!res.data);
+          } catch (e) {
+            if (!mounted) return;
+            setAdminIsAdmin(false);
+          }
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setAdminLoading(false);
       }
-    });
+    })();
 
     const { data: sub } = adminSupabase.auth.onAuthStateChange((_, s) => {
       setAdminUser(s?.user ?? null);
       if (s?.user) {
-        adminSupabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", s.user.id)
-          .eq("role", "admin")
-          .maybeSingle()
-          .then(({ data: r }) => setAdminIsAdmin(!!r))
-          .catch(() => setAdminIsAdmin(false));
+        (async () => {
+          try {
+            const res = await adminSupabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", s.user.id)
+              .eq("role", "admin")
+              .maybeSingle();
+            setAdminIsAdmin(!!res.data);
+          } catch {
+            setAdminIsAdmin(false);
+          }
+        })();
       } else {
         setAdminIsAdmin(false);
       }
