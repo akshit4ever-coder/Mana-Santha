@@ -29,9 +29,9 @@ export function Header() {
           <div className="flex h-12 w-12 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
             <img src={LogoIcon} alt="Mana Santha" className="h-50 w-50 object-contain" />
           </div>
-          <div className="hidden sm:block">
+          <div className="block">
             <div className="text-lg font-bold leading-tight text-primary">Mana Santha</div>
-            <div className="text-[10px] font-medium leading-none text-muted-foreground">Fresh to doorstep</div>
+            <div className="hidden sm:block text-[10px] font-medium leading-none text-muted-foreground">Fresh to doorstep</div>
           </div>
         </Link>
 
