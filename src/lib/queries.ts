@@ -6,9 +6,10 @@ export const useCategories = () =>
   useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
+      // Select categories and their nested subcategories so category pages can show subcategories
       const { data, error } = await supabase
         .from("categories")
-        .select("*")
+        .select("*, subcategories(*)")
         .eq("is_active", true)
         .order("sort_order");
       if (error) throw error;
@@ -22,7 +23,7 @@ export const useProducts = (opts?: { categorySlug?: string; featured?: boolean; 
     queryFn: async () => {
       let q = supabase
         .from("products")
-        .select("*, categories(name, slug), subcategories(name, slug)")
+        .select("*, categories(name, slug), subcategories(name, slug), product_variants(*)")
         .eq("is_active", true);
       if (opts?.featured) q = q.eq("is_featured", true);
       if (opts?.search) q = q.ilike("name", `%${opts.search}%`);

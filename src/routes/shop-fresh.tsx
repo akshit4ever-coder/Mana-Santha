@@ -27,7 +27,7 @@ function ShopFreshPage() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {freshCats.map((c: any) => (
-            <Link key={c.id} to="/category/$slug" params={{ slug: c.slug }} className="group flex flex-col items-center gap-2 rounded-xl border bg-card p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow">
+            <Link key={c.id} to={`/category/${c.slug}` as any} className="group flex flex-col items-center gap-2 rounded-xl border bg-card p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow">
               <div className="flex h-28 w-28 items-center justify-center overflow-hidden bg-gradient-fresh text-3xl">
                 {c.image_url ? (
                   <img src={c.image_url} alt={c.name} className="h-full w-full object-cover rounded-none" />

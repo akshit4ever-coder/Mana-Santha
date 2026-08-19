@@ -82,8 +82,7 @@ function Home() {
             {cats?.map((c) => (
               <Link
                 key={c.id}
-                to="/category/$slug"
-                params={{ slug: c.slug }}
+                to={`/category/${c.slug}` as any}
                 className="group flex flex-col items-center gap-2 rounded-xl border bg-card p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow"
               >
                 <div className="flex h-28 w-28 items-center justify-center overflow-hidden bg-gradient-fresh text-3xl">
