@@ -31,6 +31,7 @@ function Checkout() {
     line1: "",
     line2: "",
     city: "",
+    state: "",
     pincode: "",
   });
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -111,7 +112,8 @@ function Checkout() {
 
     setCheckingDelivery(true);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+                      <div><Label>State</Label><Input required value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} /></div>
+                      <div><Label>Pincode</Label><Input required value={addr.pincode} onChange={(e) => setAddr({ ...addr, pincode: e.target.value })} /></div>
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 })
       );
       const lat = pos.coords.latitude;
@@ -123,8 +125,9 @@ function Checkout() {
       const line1 = [addrParts.house_number, addrParts.road].filter(Boolean).join(" ") || body.display_name || "";
       const line2 = [addrParts.suburb, addrParts.neighbourhood].filter(Boolean).join(", ") || "";
       const city = addrParts.city || addrParts.town || addrParts.village || addrParts.county || "";
+      const state = addrParts.state || "";
       const pincode = addrParts.postcode || "";
-      setAddr((a) => ({ ...a, line1, line2, city, pincode }));
+      setAddr((a) => ({ ...a, line1, line2, city, state, pincode }));
       const q = [line1, line2, city, state, pincode].filter(Boolean).join(" ");
       await checkDeliveryAvailability(q + ", India");
       toast.success("Location detected — please verify address details before saving or placing order");
@@ -173,7 +176,14 @@ function Checkout() {
 
   // Run check when address fields change (debounced)
   useEffect(() => {
-    const qParts = [addr.line1, addr.line2, addr.city, addr.pincode].filter(Boolean);
+    // Prefer full address (line1 present); otherwise try city + pincode if both provided
+    let qParts: string[] = [];
+    if (addr.line1 && addr.line1.trim().length > 0) {
+      qParts = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean);
+    } else if (addr.city && addr.pincode) {
+      qParts = [addr.city, addr.pincode].filter(Boolean);
+    }
+
     if (qParts.length === 0) {
       setDeliveryAvailable(null);
       return;
@@ -270,7 +280,7 @@ function Checkout() {
       let addressId = selectedAddressId;
       if (!addressId) {
         // Try to find an identical saved address
-        const found = savedAddresses.find((s) => s.full_name === addr.full_name && s.phone === addr.phone && s.line1 === addr.line1 && (s.line2 ?? "") === (addr.line2 ?? "") && s.city === addr.city && s.pincode === addr.pincode);
+        const found = savedAddresses.find((s) => s.full_name === addr.full_name && s.phone === addr.phone && s.line1 === addr.line1 && (s.line2 ?? "") === (addr.line2 ?? "") && s.city === addr.city && s.state === addr.state && s.pincode === addr.pincode);
         if (found) {
           addressId = found.id;
           setSelectedAddressId(addressId);
@@ -358,7 +368,7 @@ function Checkout() {
                     <div key={a.id} className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${selectedAddressId === a.id ? "border-primary bg-primary/5" : "hover:bg-secondary"}`}>
                       <div>
                                         <div className="font-medium">{a.full_name} <span className="text-muted-foreground">• {a.phone}</span></div>
-                                        <div className="text-sm text-muted-foreground">{a.line1}{a.line2 ? ", " + a.line2 : ""}, {a.city} — {a.pincode}</div>
+                                                        <div className="text-sm text-muted-foreground">{a.line1}{a.line2 ? ", " + a.line2 : ""}, {a.city}{a.state ? `, ${a.state}` : ""} — {a.pincode}</div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button type="button" className="text-sm text-primary underline" onClick={() => {
@@ -368,6 +378,7 @@ function Checkout() {
                                             line1: a.line1,
                                             line2: a.line2 ?? "",
                                             city: a.city,
+                                            state: a.state ?? "",
                                             pincode: a.pincode,
                                           });
                           setSelectedAddressId(a.id);
