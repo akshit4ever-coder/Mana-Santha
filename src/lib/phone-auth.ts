@@ -84,8 +84,8 @@ export async function signInWithIdentifierAndPassword(identifier: string, passwo
   const rawInput = identifier.trim();
   const cleanId = rawInput.toLowerCase();
   
-  if (password.length < 3) {
-    throw new Error("Password must be at least 3 characters");
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters");
   }
 
   // 1. Direct Email (e.g., admin@manasantha.com)
@@ -147,7 +147,7 @@ export async function signInWithIdentifierAndPassword(identifier: string, passwo
 }
 
 /**
- * Register account with Full Name + Phone Number + Password (min 3 chars)
+ * Register account with Full Name + Phone Number + Password (min 6 chars)
  */
 export async function registerNewUser({
   fullName,
@@ -163,7 +163,7 @@ export async function registerNewUser({
 
   if (!cleanName) throw new Error("Please enter your Full Name");
   if (digits.length !== 10) throw new Error("Please enter a valid 10-digit mobile number");
-  if (password.length < 3) throw new Error("Password must be at least 3 characters");
+  if (password.length < 6) throw new Error("Password must be at least 6 characters");
 
   const formattedPhone = `+91${digits}`;
   const syntheticPhoneEmail = `${digits}@manasantha.local`;

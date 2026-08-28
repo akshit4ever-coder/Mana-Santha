@@ -30,30 +30,55 @@ function Home() {
       <main>
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="relative">
-            <div className="h-56 md:h-96 lg:h-[560px] w-full relative">
-              <img src={heroImg} alt="Fresh groceries in a basket" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/70 to-primary/20" />
-            </div>
-            <div className="container relative mx-auto px-4 -mt-28 md:-mt-56 lg:-mt-80">
-              <div className="max-w-xl text-primary-foreground">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/95 px-3 py-1 text-xs font-semibold text-accent-foreground">
-                  <Tag className="h-3.5 w-3.5" /> First order free delivery
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight md:text-5xl lg:text-6xl">Fresh Groceries, Delivered Fast</h1>
-                <p className="mt-3 text-sm md:text-lg opacity-90">From farm-fresh produce to your favourite kirana brands — everything you need, delivered to your doorstep.</p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Button asChild size="lg" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
-                    <Link to="/shop-fresh">Shop Fresh</Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="rounded-full border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-                    <Link to="/kirana-essentials">Kirana essentials</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+  <div className="relative h-[420px] md:h-[560px]">
+    <img
+      src={heroImg}
+      alt="Fresh groceries in a basket"
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+
+    <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/70 to-primary/20" />
+
+    <div className="container relative z-10 mx-auto flex h-full items-center px-4">
+      <div className="max-w-xl text-primary-foreground">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/95 px-3 py-1 text-xs font-semibold text-accent-foreground">
+          <Tag className="h-3.5 w-3.5" />
+          First order free delivery
+        </div>
+
+        <h1 className="text-2xl font-extrabold leading-tight sm:text-3xl md:text-5xl lg:text-6xl">
+          Fresh Groceries, Delivered Fast
+        </h1>
+
+        <p className="mt-3 text-sm md:text-lg opacity-90">
+          From farm-fresh produce to your favourite kirana brands — everything
+          you need, delivered to your doorstep.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            <Link to="/shop-fresh">Shop Fresh</Link>
+          </Button>
+
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="rounded-full border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+          >
+            <Link to="/kirana-essentials">
+              Kirana essentials
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
         {/* Value props */}
         <section className="border-b bg-secondary/40">

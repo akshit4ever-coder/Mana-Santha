@@ -278,6 +278,36 @@ function AdminLayout() {
   // Determine if admin is authenticated either via user session or admin client
   const effectiveIsAdmin = isAdmin || adminIsAdmin;
 
+  // Subscribe to new orders for real-time admin notifications
+  useEffect(() => {
+    if (!effectiveIsAdmin) return;
+    const channel = adminSupabase.channel('public:orders')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        try {
+          const order = (payload.new as any) ?? payload.record ?? payload;
+          const short = `Order #${order.id} — ${order.total ? `₹${order.total}` : ''}`;
+          toast.success(`New order received: ${short}`);
+          // Browser Notification API
+          if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'granted') {
+              new Notification('New Order', { body: short });
+            } else if (Notification.permission !== 'denied') {
+              Notification.requestPermission().then((perm) => {
+                if (perm === 'granted') new Notification('New Order', { body: short });
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to process order notification', e);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      try { channel.unsubscribe(); } catch (e) { /* ignore */ }
+    };
+  }, [effectiveIsAdmin]);
+
   // Not logged in as either admin user or admin client -> show admin login form
   if (!user && !adminUser) {
     return <AdminLoginForm />;

@@ -66,8 +66,8 @@ function AuthPage() {
       toast.error("Please enter your Full Name or Phone number");
       return;
     }
-    if (loginPassword.length < 3) {
-      toast.error("Password must be at least 3 characters");
+    if (loginPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
 
@@ -95,8 +95,8 @@ function AuthPage() {
       toast.error("Please enter a valid 10-digit Phone Number");
       return;
     }
-    if (regPassword.length < 3) {
-      toast.error("Password must be at least 3 characters long");
+    if (regPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
       return;
     }
     if (regPassword !== regConfirmPassword) {
@@ -179,6 +179,7 @@ function AuthPage() {
                       placeholder="Enter your password"
                       required
                       minLength={3}
+                      minLength={6}
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="pr-10"
@@ -242,14 +243,14 @@ function AuthPage() {
 
                 <div>
                   <Label htmlFor="reg-pass" className="text-xs font-semibold text-muted-foreground uppercase">
-                    Password (Min 3 characters) *
+                    Password (Min 6 characters) *
                   </Label>
                   <Input
                     id="reg-pass"
                     type="password"
                     placeholder="Enter password"
                     required
-                    minLength={3}
+                    minLength={6}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     className="mt-1"
