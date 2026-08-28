@@ -7,14 +7,9 @@ import { Input } from "@/components/UI/input";
 import { Label } from "@/components/UI/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/UI/tabs";
 import { useAuth } from "@/lib/auth";
-import {
-  requestOTP,
-  verifyOTPAndAuth,
-  signInWithIdentifierAndPassword,
-  registerNewUser,
-} from "@/lib/phone-auth";
+import { signInWithIdentifierAndPassword, registerNewUser } from "@/lib/phone-auth";
 import { toast } from "sonner";
-import { Loader2, Leaf, Phone, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Loader2, Leaf, KeyRound, Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -32,7 +27,7 @@ function AuthPage() {
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
-  const [method, setMethod] = useState<"password" | "otp">("password");
+  // login method fixed to password-only
 
   // Sign In states
   const [loginIdentifier, setLoginIdentifier] = useState("");
@@ -45,11 +40,7 @@ function AuthPage() {
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
 
-  // OTP flow states
-  const [otpPhone, setOtpPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpStep, setOtpStep] = useState<"phone" | "verify">("phone");
-  const [devMessage, setDevMessage] = useState<string | null>(null);
+  // OTP removed — password-only login
 
   useEffect(() => {
     if (user) {
@@ -65,10 +56,7 @@ function AuthPage() {
     setRegPhone("");
     setRegPassword("");
     setRegConfirmPassword("");
-    setOtpPhone("");
-    setOtpCode("");
-    setOtpStep("phone");
-    setDevMessage(null);
+    // OTP fields cleared (OTP removed)
   };
 
   // Login Handler (Either Full Name OR Phone Number + Password)
@@ -132,53 +120,7 @@ function AuthPage() {
     }
   };
 
-  // Send OTP
-  const handleSendOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPhone = otpPhone.replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
-      toast.error("Please enter a valid 10-digit mobile number");
-      return;
-    }
-
-    setLoading(true);
-    setDevMessage(null);
-    try {
-      const res = await requestOTP(cleanPhone);
-      setOtpStep("verify");
-      if (res.devOtp) {
-        setDevMessage(`Dev Mode OTP: ${res.devOtp}`);
-        toast.info(`Dev Mode OTP Code: ${res.devOtp}`);
-      } else {
-        toast.success("OTP sent to your mobile number!");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send OTP");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Verify OTP
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanOtp = otpCode.replace(/\D/g, "");
-    if (cleanOtp.length !== 6) {
-      toast.error("Please enter the 6-digit OTP code");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await verifyOTPAndAuth(otpPhone, cleanOtp);
-      toast.success("Welcome to Mana Santha! 🎉");
-      navigate({ to: "/" });
-    } catch (error: any) {
-      toast.error(error.message || "OTP verification failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // OTP handlers removed
 
   return (
     <div className="min-h-screen bg-gradient-fresh flex flex-col justify-between">
@@ -210,152 +152,53 @@ function AuthPage() {
 
             {/* ================= SIGN IN TAB ================= */}
             <TabsContent value="signin" className="space-y-4">
-              {/* Method Switcher */}
-              <div className="flex gap-2 p-1 rounded-xl bg-muted/60">
-                <Button
-                  type="button"
-                  variant={method === "password" ? "default" : "ghost"}
-                  className="flex-1 rounded-lg text-xs font-semibold gap-1.5 h-9"
-                  onClick={() => {
-                    setMethod("password");
-                    resetForm();
-                  }}
-                >
-                  <KeyRound className="h-3.5 w-3.5" />
-                  Name / Phone + Password
-                </Button>
-                <Button
-                  type="button"
-                  variant={method === "otp" ? "default" : "ghost"}
-                  className="flex-1 rounded-lg text-xs font-semibold gap-1.5 h-9"
-                  onClick={() => {
-                    setMethod("otp");
-                    resetForm();
-                  }}
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  Phone OTP
-                </Button>
-              </div>
-
-              {/* Password Login (Name OR Phone + Password) */}
-              {method === "password" && (
-                <form onSubmit={handlePasswordSignIn} className="space-y-3">
-                  <div>
-                    <Label htmlFor="login-id" className="text-xs font-semibold text-muted-foreground uppercase">
-                      Full Name OR Mobile Number *
-                    </Label>
-                    <Input
-                      id="login-id"
-                      type="text"
-                      placeholder="e.g. Ramesh Kumar or 9876543210"
-                      required
-                      value={loginIdentifier}
-                      onChange={(e) => setLoginIdentifier(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="login-pass" className="text-xs font-semibold text-muted-foreground uppercase">
-                      Password *
-                    </Label>
-                    <div className="relative mt-1">
-                      <Input
-                        id="login-pass"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        required
-                        minLength={3}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button type="submit" disabled={loading} className="w-full rounded-full py-5 text-base font-semibold">
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign In
-                  </Button>
-                </form>
-              )}
-
-              {/* Phone OTP Login */}
-              {method === "otp" && (
+              <form onSubmit={handlePasswordSignIn} className="space-y-3">
                 <div>
-                  {otpStep === "phone" ? (
-                    <form onSubmit={handleSendOTP} className="space-y-3">
-                      <div>
-                        <Label htmlFor="otp-phone" className="text-xs font-semibold text-muted-foreground uppercase">
-                          Mobile Number *
-                        </Label>
-                        <div className="relative mt-1">
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-sm font-semibold text-muted-foreground border-r pr-2">
-                            +91
-                          </div>
-                          <Input
-                            id="otp-phone"
-                            type="tel"
-                            placeholder="9876543210"
-                            required
-                            value={otpPhone}
-                            onChange={(e) => setOtpPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                            maxLength={10}
-                            className="pl-16 text-lg tracking-wider font-medium"
-                          />
-                        </div>
-                      </div>
-                      <Button type="submit" disabled={loading} className="w-full rounded-full py-5 text-base font-semibold">
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Send OTP
-                      </Button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleVerifyOTP} className="space-y-3">
-                      {devMessage && (
-                        <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-center text-xs font-medium text-amber-800">
-                          {devMessage}
-                        </div>
-                      )}
-                      <div>
-                        <Label htmlFor="otp-code" className="text-xs font-semibold text-muted-foreground uppercase">
-                          Enter 6-Digit OTP *
-                        </Label>
-                        <Input
-                          id="otp-code"
-                          type="text"
-                          placeholder="000000"
-                          required
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                          maxLength={6}
-                          className="mt-1 text-center text-2xl tracking-[0.4em] font-mono py-5"
-                        />
-                      </div>
-                      <Button type="submit" disabled={loading} className="w-full rounded-full py-5 text-base font-semibold">
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Verify & Login
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setOtpStep("phone")}
-                        className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mx-auto pt-1"
-                      >
-                        <ArrowLeft className="h-3 w-3" /> Change Number
-                      </button>
-                    </form>
-                  )}
+                  <Label htmlFor="login-id" className="text-xs font-semibold text-muted-foreground uppercase">
+                    Full Name OR Mobile Number *
+                  </Label>
+                  <Input
+                    id="login-id"
+                    type="text"
+                    placeholder="e.g. Ramesh Kumar or 9876543210"
+                    required
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
-              )}
+
+                <div>
+                  <Label htmlFor="login-pass" className="text-xs font-semibold text-muted-foreground uppercase">
+                    Password *
+                  </Label>
+                  <div className="relative mt-1">
+                    <Input
+                      id="login-pass"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      required
+                      minLength={3}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full rounded-full py-5 text-base font-semibold">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+              </form>
             </TabsContent>
 
             {/* ================= REGISTER TAB (Full Name + Phone + Password) ================= */}

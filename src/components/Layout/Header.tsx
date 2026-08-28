@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Search, ShoppingCart, User, Heart, LogOut, LayoutDashboard, Package } from "lucide-react";
 import { Button } from "@/components/UI/button";
-import LogoIcon from "@/assets/ManaSantha_Logo.png";
+import LogoIcon from "@/assets/ManaSantha_Logo.jpeg";
+import TitleImg from "@/assets/Mana Santa Title.jpg";
 import { Input } from "@/components/UI/input";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/queries";
@@ -24,14 +25,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="container mx-auto flex h-16 items-center gap-4 px-4">
+      <div className="container mx-auto flex h-24 md:h-20 items-center gap-4 px-4">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
-            <img src={LogoIcon} alt="Mana Santha" className="h-50 w-50 object-contain" />
+          <div className="flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
+            <img src={LogoIcon} alt="Mana Santha logo" className="h-14 w-14 md:h-20 md:w-20 object-contain" />
           </div>
           <div className="block">
-            <div className="text-lg font-bold leading-tight text-primary">Mana Santha</div>
-            <div className="hidden sm:block text-[10px] font-medium leading-none text-muted-foreground">Fresh to doorstep</div>
+            <img src={TitleImg} alt="Mana Santha" className="h-12 md:h-16 object-contain" />
           </div>
         </Link>
 
