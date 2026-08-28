@@ -31,7 +31,6 @@ function Checkout() {
     line1: "",
     line2: "",
     city: "",
-    state: "",
     pincode: "",
   });
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -103,9 +102,78 @@ function Checkout() {
     }
   };
 
+  // Use browser geolocation + reverse geocode to fill address fields
+  const useCurrentLocation = async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation not supported in this browser");
+      return;
+    }
+
+    setCheckingDelivery(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 })
+      );
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`);
+      if (!res.ok) throw new Error("Failed to reverse geocode");
+      const body = await res.json();
+      const addrParts = body.address ?? {};
+      const line1 = [addrParts.house_number, addrParts.road].filter(Boolean).join(" ") || body.display_name || "";
+      const line2 = [addrParts.suburb, addrParts.neighbourhood].filter(Boolean).join(", ") || "";
+      const city = addrParts.city || addrParts.town || addrParts.village || addrParts.county || "";
+      const pincode = addrParts.postcode || "";
+      setAddr((a) => ({ ...a, line1, line2, city, pincode }));
+      const q = [line1, line2, city, state, pincode].filter(Boolean).join(" ");
+      await checkDeliveryAvailability(q + ", India");
+      toast.success("Location detected — please verify address details before saving or placing order");
+    } catch (e: any) {
+      console.warn("Geolocation/reverse geocode failed", e);
+      toast.error(e?.message || "Failed to detect location");
+    } finally {
+      setCheckingDelivery(false);
+    }
+  };
+
+  // Save currently entered address for the user (without placing order)
+  const saveAddressNow = async () => {
+    if (!user) {
+      toast.error("Please sign in to save addresses");
+      return;
+    }
+    if (!addr.full_name || !addr.phone || !addr.line1 || !addr.city || !addr.state || !addr.pincode) {
+      toast.error("Please fill all address fields before saving");
+      return;
+    }
+    try {
+      const { data: newAddr, error: addrErr } = await (supabase as any)
+        .from("addresses")
+        .insert({
+          user_id: user.id,
+          full_name: addr.full_name,
+          phone: addr.phone,
+          line1: addr.line1,
+          line2: addr.line2 ?? null,
+          city: addr.city,
+          pincode: addr.pincode,
+          is_default: false,
+        })
+        .select()
+        .single();
+      if (addrErr) throw addrErr;
+      setSavedAddresses((s) => [newAddr, ...(s ?? [])]);
+      setSelectedAddressId(newAddr.id);
+      toast.success("Address saved");
+    } catch (e: any) {
+      console.warn("Failed to save address", e);
+      toast.error(e?.message || "Failed to save address");
+    }
+  };
+
   // Run check when address fields change (debounced)
   useEffect(() => {
-    const qParts = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean);
+    const qParts = [addr.line1, addr.line2, addr.city, addr.pincode].filter(Boolean);
     if (qParts.length === 0) {
       setDeliveryAvailable(null);
       return;
@@ -145,11 +213,11 @@ function Checkout() {
 
   const placeOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addr.full_name || !addr.phone || !addr.line1 || !addr.city || !addr.state || !addr.pincode) {
+    if (!addr.full_name || !addr.phone || !addr.line1 || !addr.city || !addr.pincode) {
       toast.error("Please fill all address fields"); return;
     }
     // Ensure latest availability check (geocode full address) before placing order
-    const qParts = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean);
+    const qParts = [addr.line1, addr.line2, addr.city, addr.pincode].filter(Boolean);
     const qStr = `${qParts.join(" ")}, India`;
     setCheckingDelivery(true);
     const avail = await checkDeliveryAvailability(qStr);
@@ -202,7 +270,7 @@ function Checkout() {
       let addressId = selectedAddressId;
       if (!addressId) {
         // Try to find an identical saved address
-        const found = savedAddresses.find((s) => s.full_name === addr.full_name && s.phone === addr.phone && s.line1 === addr.line1 && (s.line2 ?? "") === (addr.line2 ?? "") && s.city === addr.city && s.state === addr.state && s.pincode === addr.pincode);
+        const found = savedAddresses.find((s) => s.full_name === addr.full_name && s.phone === addr.phone && s.line1 === addr.line1 && (s.line2 ?? "") === (addr.line2 ?? "") && s.city === addr.city && s.pincode === addr.pincode);
         if (found) {
           addressId = found.id;
           setSelectedAddressId(addressId);
@@ -210,16 +278,15 @@ function Checkout() {
           const { data: newAddr, error: addrErr } = await (supabase as any)
             .from("addresses")
             .insert({
-              user_id: supabaseUser.id,
-              full_name: addr.full_name,
-              phone: addr.phone,
-              line1: addr.line1,
-              line2: addr.line2 ?? null,
-              city: addr.city,
-              state: addr.state,
-              pincode: addr.pincode,
-              is_default: false,
-            })
+                user_id: supabaseUser.id,
+                full_name: addr.full_name,
+                phone: addr.phone,
+                line1: addr.line1,
+                line2: addr.line2 ?? null,
+                city: addr.city,
+                pincode: addr.pincode,
+                is_default: false,
+              })
             .select()
             .single();
           if (addrErr) throw addrErr;
@@ -290,20 +357,19 @@ function Checkout() {
                   {savedAddresses.map((a) => (
                     <div key={a.id} className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${selectedAddressId === a.id ? "border-primary bg-primary/5" : "hover:bg-secondary"}`}>
                       <div>
-                        <div className="font-medium">{a.full_name} <span className="text-muted-foreground">• {a.phone}</span></div>
-                        <div className="text-sm text-muted-foreground">{a.line1}{a.line2 ? ", " + a.line2 : ""}, {a.city}, {a.state} — {a.pincode}</div>
+                                        <div className="font-medium">{a.full_name} <span className="text-muted-foreground">• {a.phone}</span></div>
+                                        <div className="text-sm text-muted-foreground">{a.line1}{a.line2 ? ", " + a.line2 : ""}, {a.city} — {a.pincode}</div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button type="button" className="text-sm text-primary underline" onClick={() => {
-                          setAddr({
-                            full_name: a.full_name,
-                            phone: a.phone,
-                            line1: a.line1,
-                            line2: a.line2 ?? "",
-                            city: a.city,
-                            state: a.state,
-                            pincode: a.pincode,
-                          });
+                                          setAddr({
+                                            full_name: a.full_name,
+                                            phone: a.phone,
+                                            line1: a.line1,
+                                            line2: a.line2 ?? "",
+                                            city: a.city,
+                                            pincode: a.pincode,
+                                          });
                           setSelectedAddressId(a.id);
                           const q = [a.line1, a.line2, a.city, a.state, a.pincode].filter(Boolean).join(" ");
                           checkDeliveryAvailability(q + ", India");
@@ -329,14 +395,23 @@ function Checkout() {
               </section>
             )}
             <section className="rounded-xl border bg-card p-5 shadow-card">
-              <h3 className="mb-4 flex items-center gap-2 font-bold"><MapPin className="h-4 w-4 text-primary" /> Delivery Address</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 font-bold"><MapPin className="h-4 w-4 text-primary" /> Delivery Address</h3>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={useCurrentLocation} className="text-sm text-primary underline" disabled={checkingDelivery}>
+                    {checkingDelivery ? "Detecting…" : "Use my current location"}
+                  </button>
+                  <button type="button" onClick={saveAddressNow} className="ml-2 rounded-full border px-3 py-1 text-sm" disabled={checkingDelivery}>
+                    Save address
+                  </button>
+                </div>
+              </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
                 <div><Label>Full Name</Label><Input required value={addr.full_name} onChange={(e) => setAddr({ ...addr, full_name: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input required type="tel" value={addr.phone} onChange={(e) => setAddr({ ...addr, phone: e.target.value })} /></div>
                 <div className="sm:col-span-2"><Label>Address Line 1</Label><Input required value={addr.line1} onChange={(e) => setAddr({ ...addr, line1: e.target.value })} /></div>
                 <div className="sm:col-span-2"><Label>Address Line 2 (optional)</Label><Input value={addr.line2} onChange={(e) => setAddr({ ...addr, line2: e.target.value })} /></div>
                 <div><Label>City</Label><Input required value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} /></div>
-                <div><Label>State</Label><Input required value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} /></div>
                 <div><Label>Pincode</Label><Input required value={addr.pincode} onChange={(e) => setAddr({ ...addr, pincode: e.target.value })} /></div>
                 {deliveryAvailable === false && (
                   <div className="sm:col-span-2 text-sm text-destructive">Service unavailable at this location (outside {DELIVERY_RADIUS_KM}km delivery radius).</div>
