@@ -181,6 +181,7 @@ export type Database = {
       orders: {
         Row: {
           address_snapshot: Json
+          address_id: string | null
           created_at: string
           delivery_fee: number
           delivery_slot: string | null
@@ -198,6 +199,7 @@ export type Database = {
         }
         Insert: {
           address_snapshot: Json
+          address_id?: string | null
           created_at?: string
           delivery_fee?: number
           delivery_slot?: string | null
@@ -215,6 +217,7 @@ export type Database = {
         }
         Update: {
           address_snapshot?: Json
+          address_id?: string | null
           created_at?: string
           delivery_fee?: number
           delivery_slot?: string | null

@@ -115,19 +115,6 @@ var createLucideIcon = (iconName, iconNode) => {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var ArrowLeft = createLucideIcon("arrow-left", [["path", {
-	d: "m12 19-7-7 7-7",
-	key: "1l729n"
-}], ["path", {
-	d: "M19 12H5",
-	key: "x3x0zl"
-}]]);
-/**
-* @license lucide-react v0.575.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Bell = createLucideIcon("bell", [["path", {
 	d: "M10.268 21a2 2 0 0 0 3.464 0",
 	key: "vwvbt9"
@@ -464,22 +451,6 @@ var Image = createLucideIcon("image", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var KeyRound = createLucideIcon("key-round", [["path", {
-	d: "M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z",
-	key: "1s6t7t"
-}], ["circle", {
-	cx: "16.5",
-	cy: "7.5",
-	r: ".5",
-	fill: "currentColor",
-	key: "w0ekpg"
-}]]);
-/**
-* @license lucide-react v0.575.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Key = createLucideIcon("key", [
 	["path", {
 		d: "m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4",
@@ -675,16 +646,6 @@ var Pencil = createLucideIcon("pencil", [["path", {
 }], ["path", {
 	d: "m15 5 4 4",
 	key: "1mk7zo"
-}]]);
-/**
-* @license lucide-react v0.575.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Phone = createLucideIcon("phone", [["path", {
-	d: "M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384",
-	key: "9njp5v"
 }]]);
 /**
 * @license lucide-react v0.575.0 - ISC
@@ -1078,4 +1039,4 @@ var X = createLucideIcon("x", [["path", {
 	key: "d8bk6v"
 }]]);
 //#endregion
-export { Bell as $, Lock as A, EyeOff as B, Phone as C, MapPin as D, Minus as E, KeyRound as F, CircleAlert as G, Clock as H, Image as I, ChevronDown as J, ChevronUp as K, Heart as L, Leaf as M, LayoutDashboard as N, Mail as O, Key as P, Bike as Q, Funnel as R, Plus as S, Package as T, Circle as U, Database as V, CircleCheckBig as W, ChartNoAxesColumn as X, Check as Y, Boxes as Z, Shield as _, Truck as a, Search as b, Trash2 as c, Ticket as d, ArrowLeft as et, Tag as f, ShoppingBag as g, ShoppingCart as h, User as i, LoaderCircle as j, LogOut as k, ToggleRight as l, Star as m, Wallet as n, TriangleAlert as o, Store as p, ChevronRight as q, Users as r, TrendingUp as s, X as t, ToggleLeft as u, ShieldCheck as v, Pencil as w, RotateCcw as x, Settings as y, Eye as z };
+export { LoaderCircle as A, Clock as B, Pencil as C, Mail as D, MapPin as E, Heart as F, ChevronRight as G, CircleCheckBig as H, Funnel as I, ChartNoAxesColumn as J, ChevronDown as K, Eye as L, LayoutDashboard as M, Key as N, LogOut as O, Image as P, EyeOff as R, Plus as S, Minus as T, CircleAlert as U, Circle as V, ChevronUp as W, Bike as X, Boxes as Y, Bell as Z, Shield as _, Truck as a, Search as b, Trash2 as c, Ticket as d, Tag as f, ShoppingBag as g, ShoppingCart as h, User as i, Leaf as j, Lock as k, ToggleRight as l, Star as m, Wallet as n, TriangleAlert as o, Store as p, Check as q, Users as r, TrendingUp as s, X as t, ToggleLeft as u, ShieldCheck as v, Package as w, RotateCcw as x, Settings as y, Database as z };

@@ -1,11 +1,11 @@
 {
-  "compatibility_date": "2026-07-28",
+  "compatibility_date": "2026-08-28",
   "main": "index.mjs",
   "assets": {
     "binding": "ASSETS",
     "directory": "../public"
   },
-  "name": "tanstack-start-ts",
+  "name": "akshit4ever-coder-mana-santha",
   "compatibility_flags": [
     "nodejs_compat"
   ],

@@ -4,7 +4,7 @@ import { o as require_jsx_runtime } from "../_libs/@radix-ui/react-collection+[.
 import { t as supabase } from "./client-Dxm-ZOZR.mjs";
 import { t as Input } from "./input-Ceah8uUG.mjs";
 import { n as useQuery } from "../_libs/tanstack__react-query.mjs";
-import { b as Search, j as LoaderCircle, r as Users } from "../_libs/lucide-react.mjs";
+import { A as LoaderCircle, b as Search, r as Users } from "../_libs/lucide-react.mjs";
 import { a as TableHeader, i as TableHead, n as TableBody, o as TableRow, r as TableCell, t as Table } from "./table-ceoVlvxT.mjs";
 import { t as Badge } from "./badge-Dw1JS-RI.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/admin.customers-C5bigUm4.js

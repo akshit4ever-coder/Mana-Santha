@@ -1,7 +1,7 @@
 import { o as require_jsx_runtime } from "../_libs/@radix-ui/react-collection+[...].mjs";
 import { t as supabase } from "./client-Dxm-ZOZR.mjs";
 import { n as useQuery } from "../_libs/tanstack__react-query.mjs";
-import { T as Package, g as ShoppingBag, j as LoaderCircle, r as Users, s as TrendingUp } from "../_libs/lucide-react.mjs";
+import { A as LoaderCircle, g as ShoppingBag, r as Users, s as TrendingUp, w as Package } from "../_libs/lucide-react.mjs";
 import { n as formatINR } from "./format-S14ZKO36.mjs";
 import { a as Line, c as ResponsiveContainer, i as XAxis, l as Tooltip, n as LineChart, o as CartesianGrid, r as YAxis, s as Bar, t as BarChart } from "../_libs/recharts+[...].mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/admin.reports-ireFGQYE.js

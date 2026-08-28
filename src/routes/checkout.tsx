@@ -37,9 +37,22 @@ function Checkout() {
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  const [addressNotFound, setAddressNotFound] = useState<boolean>(false);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
   const checkAbortRef = useRef<AbortController | null>(null);
   const storeCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Sanitize Address Line 1 to avoid full-address paste. If user pastes a full address
+  // we keep the first two comma-separated parts as Line 1 and move the rest to Line 2.
+  const sanitizeLine1 = (value: string) => {
+    const parts = String(value).split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length <= 2) return { line1: parts.join(", "), line2: "" };
+    const line1 = parts.slice(0, 2).join(", ");
+    const line2 = parts.slice(2).join(", ");
+    return { line1, line2 };
+  };
 
   // Haversine distance (km)
   const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -52,9 +65,13 @@ function Checkout() {
     return R * c;
   };
 
-  const checkDeliveryAvailability = async (addressQuery: string) => {
+  // Returns: true = inside radius, false = outside radius, null = address could not be resolved
+  const checkDeliveryAvailability = async (addressQuery: string): Promise<boolean | null> => {
     if (!addressQuery || addressQuery.trim().length === 0) {
       setDeliveryAvailable(null);
+      setAddressNotFound(false);
+      setDeliveryDistance(null);
+      setDeliveryError(null);
       return null;
     }
     // Abort previous request
@@ -76,28 +93,73 @@ function Checkout() {
           storeCoordsRef.current = { lat: Number(sbody[0].lat), lng: Number(sbody[0].lon) };
         }
       }
+      // Geocode helper with logging
+      const geocodeOnce = async (qstr: string) => {
+        const q = encodeURIComponent(qstr);
+        console.debug("Geocoding query:", qstr);
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`, { signal: ac.signal });
+        if (!r.ok) throw new Error(`Geocode failed: ${r.status}`);
+        const b = await r.json();
+        console.debug("Nominatim response for query:", qstr, b);
+        return (b && b.length > 0) ? b[0] : null;
+      };
 
-      // Use Nominatim to resolve full address (fall back to pincode if that's all we have)
-      const q = encodeURIComponent(addressQuery);
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, { signal: ac.signal });
-      if (!res.ok) throw new Error("Geocode failed");
-      const body = await res.json();
-      if (!body || body.length === 0) {
-        setDeliveryAvailable(false);
-        return false;
+      // Attempt order: 1) full address (line1 + city + state + pincode + India),
+      // 2) city + pincode + India, 3) pincode + India
+      let geo: any = null;
+      const attempts: string[] = [];
+      // Normalize incoming query by removing trailing 'India' if present
+      const normalized = String(addressQuery).replace(/\s*,?\s*India\s*$/i, "").trim();
+      // If the query already includes comma-separated pieces, use as-is for attempt 1
+      attempts.push(normalized);
+      // Attempt 2 and 3: try to extract city and pincode from the provided fields
+      const pinMatch = normalized.match(/(\d{5,6})/);
+      const pin = pinMatch ? pinMatch[0] : (addr.pincode || "");
+      const cityPart = addr.city || "";
+      if (cityPart && pin) attempts.push(`${cityPart}, ${pin}, India`);
+      if (pin) attempts.push(`${pin}, India`);
+
+      for (const a of attempts) {
+        try {
+          geo = await geocodeOnce(a + (/, India$/i.test(a) ? "" : ", India"));
+          if (geo) {
+            console.debug("Geocode success for attempt:", a);
+            break;
+          }
+        } catch (e) {
+          console.warn("Geocode attempt failed for", a, e);
+        }
       }
-      const lat = Number(body[0].lat);
-      const lon = Number(body[0].lon);
+
+      if (!geo) {
+        // Could not geocode the address — mark addressNotFound and avoid false negative
+        console.warn("Unable to geocode customer address for query:", addressQuery);
+        setAddressNotFound(true);
+        setDeliveryAvailable(null);
+        setDeliveryDistance(null);
+        setDeliveryError(null);
+        return null;
+      }
+
+      const lat = Number(geo.lat);
+      const lon = Number(geo.lon);
       const { lat: storeLat, lng: storeLng } = storeCoordsRef.current as { lat: number; lng: number };
       const d = distanceKm(storeLat, storeLng, lat, lon);
       const ok = d <= DELIVERY_RADIUS_KM;
+      setDeliveryDistance(d);
+      setAddressNotFound(false);
+      setDeliveryError(null);
+      console.info("Delivery check — store:", storeCoordsRef.current, "customer:", { lat, lon }, "distance_km:", d, "radius_km:", DELIVERY_RADIUS_KM, "ok:", ok);
       setDeliveryAvailable(ok);
       return ok;
     } catch (err) {
-      if ((err as any)?.name === "AbortError") return;
+      if ((err as any)?.name === "AbortError") return null;
       console.warn("Delivery check failed", err);
-      setDeliveryAvailable(false);
-      return false;
+      setDeliveryAvailable(null);
+      setAddressNotFound(false);
+      setDeliveryDistance(null);
+      setDeliveryError("Delivery check failed — please retry");
+      return null;
     } finally {
       setCheckingDelivery(false);
     }
@@ -121,13 +183,21 @@ function Checkout() {
       if (!res.ok) throw new Error("Failed to reverse geocode");
       const body = await res.json();
       const addrParts = body.address ?? {};
-      const line1 = [addrParts.house_number, addrParts.road].filter(Boolean).join(" ") || body.display_name || "";
-      const line2 = [addrParts.suburb, addrParts.neighbourhood].filter(Boolean).join(", ") || "";
-      const city = addrParts.city || addrParts.town || addrParts.village || addrParts.county || "";
+      // Build a cleaner Address Line 1 from reverse geocode
+      let rawLine1 = [addrParts.house_number, addrParts.road, addrParts.neighbourhood, addrParts.suburb].filter(Boolean).join(", ");
+      if (!rawLine1 && body.display_name) {
+        // Use first two display_name segments as a fallback
+        const segs = String(body.display_name).replace(/\s*,\s*India\s*$/i, "").split(",").map((s: string) => s.trim()).filter(Boolean);
+        rawLine1 = segs.slice(0, 2).join(", ");
+      }
+      const sanitized = sanitizeLine1(rawLine1);
+      const line1 = sanitized.line1;
+      const line2 = sanitized.line2 || [addrParts.suburb, addrParts.neighbourhood].filter(Boolean).join(", ") || "";
+      const city = addrParts.city || addrParts.town || addrParts.village || addrParts.county || addrParts.state_district || "";
       const state = addrParts.state || "";
       const pincode = addrParts.postcode || "";
       setAddr((a) => ({ ...a, line1, line2, city, state, pincode }));
-      const q = [line1, line2, city, state, pincode].filter(Boolean).join(" ");
+      const q = [line1, line2, city, state, pincode].filter(Boolean).join(", ");
       await checkDeliveryAvailability(q + ", India");
       toast.success("Location detected — please verify address details before saving or placing order");
     } catch (e: any) {
@@ -158,6 +228,7 @@ function Checkout() {
           line1: addr.line1,
           line2: addr.line2 ?? null,
           city: addr.city,
+          state: addr.state,
           pincode: addr.pincode,
           is_default: false,
         })
@@ -226,12 +297,17 @@ function Checkout() {
       toast.error("Please fill all address fields"); return;
     }
     // Ensure latest availability check (geocode full address) before placing order
-    const qParts = [addr.line1, addr.line2, addr.city, addr.pincode].filter(Boolean);
+    const qParts = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean);
     const qStr = `${qParts.join(" ")}, India`;
     setCheckingDelivery(true);
     const avail = await checkDeliveryAvailability(qStr);
     if (avail === false) {
-      toast.error("Service unavailable at this location (outside delivery radius)");
+      toast.error(`❌ Delivery is unavailable because this address is outside our ${DELIVERY_RADIUS_KM} km delivery area.`);
+      setCheckingDelivery(false);
+      return;
+    }
+    if (avail === null) {
+      toast.error("⚠️ We couldn't verify this address. Please check the address, enter a nearby landmark, or use Current Location.");
       setCheckingDelivery(false);
       return;
     }
@@ -293,6 +369,7 @@ function Checkout() {
                 line1: addr.line1,
                 line2: addr.line2 ?? null,
                 city: addr.city,
+                state: addr.state,
                 pincode: addr.pincode,
                 is_default: false,
               })
@@ -419,17 +496,25 @@ function Checkout() {
                     <div className="grid gap-3 sm:grid-cols-2">
                 <div><Label>Full Name</Label><Input required value={addr.full_name} onChange={(e) => setAddr({ ...addr, full_name: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input required type="tel" value={addr.phone} onChange={(e) => setAddr({ ...addr, phone: e.target.value })} /></div>
-                <div className="sm:col-span-2"><Label>Address Line 1</Label><Input required value={addr.line1} onChange={(e) => setAddr({ ...addr, line1: e.target.value })} /></div>
+                <div className="sm:col-span-2"><Label>Address Line 1</Label><Input placeholder="House No., Street, Landmark" required value={addr.line1} onChange={(e) => {
+                  const v = e.target.value;
+                  const { line1, line2 } = sanitizeLine1(v);
+                  setAddr((a) => ({ ...a, line1, line2: line2 || a.line2 }));
+                }} /></div>
                 <div className="sm:col-span-2"><Label>Address Line 2 (optional)</Label><Input value={addr.line2} onChange={(e) => setAddr({ ...addr, line2: e.target.value })} /></div>
                 <div><Label>City</Label><Input required value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} /></div>
+                <div><Label>State</Label><Input required value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} /></div>
                 <div><Label>Pincode</Label><Input required value={addr.pincode} onChange={(e) => setAddr({ ...addr, pincode: e.target.value })} /></div>
-                {deliveryAvailable === false && (
-                  <div className="sm:col-span-2 text-sm text-destructive">Service unavailable at this location (outside {DELIVERY_RADIUS_KM}km delivery radius).</div>
+                {addressNotFound && (
+                  <div className="sm:col-span-2 text-sm text-warning">⚠️ We couldn't verify this address. Please check the address, enter a nearby landmark, or use Current Location.</div>
                 )}
-                {deliveryAvailable === true && (
-                  <div className="sm:col-span-2 text-sm text-success">Delivery available in your area.</div>
+                {!addressNotFound && deliveryAvailable === false && (
+                  <div className="sm:col-span-2 text-sm text-destructive">❌ Delivery is unavailable because this address is outside our {DELIVERY_RADIUS_KM} km delivery area.</div>
                 )}
-                {deliveryAvailable === null && checkingDelivery && (
+                {!addressNotFound && deliveryAvailable === true && (
+                  <div className="sm:col-span-2 text-sm text-success">✅ Delivery available{deliveryDistance ? ` (${deliveryDistance.toFixed(2)} km from store)` : ""}</div>
+                )}
+                {!addressNotFound && deliveryAvailable === null && checkingDelivery && (
                   <div className="sm:col-span-2 text-sm text-muted-foreground">Checking delivery availability…</div>
                 )}
               </div>

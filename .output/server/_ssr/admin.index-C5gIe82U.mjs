@@ -1,7 +1,7 @@
 import { o as require_jsx_runtime } from "../_libs/@radix-ui/react-collection+[...].mjs";
 import { t as supabase } from "./client-Dxm-ZOZR.mjs";
 import { n as useQuery } from "../_libs/tanstack__react-query.mjs";
-import { T as Package, g as ShoppingBag, r as Users, s as TrendingUp } from "../_libs/lucide-react.mjs";
+import { g as ShoppingBag, r as Users, s as TrendingUp, w as Package } from "../_libs/lucide-react.mjs";
 import { n as formatINR } from "./format-S14ZKO36.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/admin.index-C5gIe82U.js
 var import_jsx_runtime = require_jsx_runtime();

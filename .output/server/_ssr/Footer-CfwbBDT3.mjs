@@ -1,5 +1,5 @@
 import { o as require_jsx_runtime } from "../_libs/@radix-ui/react-collection+[...].mjs";
-import { M as Leaf } from "../_libs/lucide-react.mjs";
+import { j as Leaf } from "../_libs/lucide-react.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/Footer-CfwbBDT3.js
 var import_jsx_runtime = require_jsx_runtime();
 function Footer() {

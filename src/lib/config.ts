@@ -12,5 +12,5 @@ export const STORE_LNG = process.env.STORE_LNG ? Number(process.env.STORE_LNG) :
 export const DELIVERY_RADIUS_KM = Number(process.env.DELIVERY_RADIUS_KM) || 5; // kilometers
 
 // Example: to hardcode the center here, uncomment and set the values below:
-// export const STORE_LAT = 16.9388;
-// export const STORE_LNG = 81.1324;
+// export const STORE_LAT = 17.0108773;
+// export const STORE_LNG = 81.2058380;
