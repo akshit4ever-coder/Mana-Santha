@@ -264,26 +264,26 @@ function AdminLayout() {
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      try {
+        if (sub && (sub as any).subscription && typeof (sub as any).subscription.unsubscribe === 'function') {
+          (sub as any).subscription.unsubscribe();
+        }
+      } catch (e) {
+        console.warn('Failed to unsubscribe admin auth listener', e);
+      }
     };
   }, []);
-
-  if (loading || adminLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
   // Determine if admin is authenticated either via user session or admin client
   const effectiveIsAdmin = isAdmin || adminIsAdmin;
 
   // Subscribe to new orders for real-time admin notifications
   useEffect(() => {
     if (!effectiveIsAdmin) return;
+    console.debug('Admin realtime: subscribing to orders channel — effectiveIsAdmin=', effectiveIsAdmin);
     const channel = adminSupabase.channel('public:orders')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         try {
+          console.debug('Admin realtime: received payload for orders INSERT', payload);
           const order = (payload.new as any) ?? payload.record ?? payload;
           const short = `Order #${order.id} — ${order.total ? `₹${order.total}` : ''}`;
           toast.success(`New order received: ${short}`);
@@ -303,10 +303,24 @@ function AdminLayout() {
       })
       .subscribe();
 
+    console.debug('Admin realtime: subscribe() returned', channel);
+
     return () => {
-      try { channel.unsubscribe(); } catch (e) { /* ignore */ }
+      try {
+        if (channel && typeof (channel as any).unsubscribe === 'function') (channel as any).unsubscribe();
+      } catch (e) {
+        console.warn('Failed to unsubscribe admin realtime channel', e);
+      }
     };
   }, [effectiveIsAdmin]);
+
+  if (loading || adminLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // Not logged in as either admin user or admin client -> show admin login form
   if (!user && !adminUser) {

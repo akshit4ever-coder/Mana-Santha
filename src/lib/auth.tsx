@@ -85,7 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      try {
+        if (sub && (sub as any).subscription && typeof (sub as any).subscription.unsubscribe === 'function') {
+          (sub as any).subscription.unsubscribe();
+        }
+      } catch (e) {
+        console.warn('Failed to unsubscribe auth listener', e);
+      }
+    };
   }, []);
 
   const signOut = async () => {
