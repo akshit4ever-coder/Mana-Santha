@@ -42,6 +42,7 @@ function Checkout() {
   const [addressNotFound, setAddressNotFound] = useState<boolean>(false);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
   const checkAbortRef = useRef<AbortController | null>(null);
+  const checkRequestIdRef = useRef(0);
   const storeCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Sanitize Address Line 1 to avoid full-address paste. If user pastes a full address
@@ -74,13 +75,15 @@ function Checkout() {
       setDeliveryError(null);
       return null;
     }
-    // Abort previous request
+
+    // Ignore stale requests caused by rapid typing or geolocation updates.
+    const requestId = ++checkRequestIdRef.current;
     if (checkAbortRef.current) checkAbortRef.current.abort();
     const ac = new AbortController();
     checkAbortRef.current = ac;
     setCheckingDelivery(true);
+
     try {
-      // Ensure we have store coordinates (either configured or geocoded)
       if (!storeCoordsRef.current) {
         if (typeof STORE_LAT === "number" && typeof STORE_LNG === "number") {
           storeCoordsRef.current = { lat: STORE_LAT, lng: STORE_LNG } as any;
@@ -93,7 +96,7 @@ function Checkout() {
           storeCoordsRef.current = { lat: Number(sbody[0].lat), lng: Number(sbody[0].lon) };
         }
       }
-      // Geocode helper with logging
+
       const geocodeOnce = async (qstr: string) => {
         const q = encodeURIComponent(qstr);
         console.debug("Geocoding query:", qstr);
@@ -104,35 +107,39 @@ function Checkout() {
         return (b && b.length > 0) ? b[0] : null;
       };
 
-      // Attempt order: 1) full address (line1 + city + state + pincode + India),
-      // 2) city + pincode + India, 3) pincode + India
-      let geo: any = null;
-      const attempts: string[] = [];
-      // Normalize incoming query by removing trailing 'India' if present
       const normalized = String(addressQuery).replace(/\s*,?\s*India\s*$/i, "").trim();
-      // If the query already includes comma-separated pieces, use as-is for attempt 1
-      attempts.push(normalized);
-      // Attempt 2 and 3: try to extract city and pincode from the provided fields
       const pinMatch = normalized.match(/(\d{5,6})/);
       const pin = pinMatch ? pinMatch[0] : (addr.pincode || "");
       const cityPart = addr.city || "";
-      if (cityPart && pin) attempts.push(`${cityPart}, ${pin}, India`);
-      if (pin) attempts.push(`${pin}, India`);
+      const statePart = addr.state || "";
 
-      for (const a of attempts) {
+      const attempts = Array.from(new Set([
+        normalized,
+        `${cityPart || normalized}, ${pin || ""}`.replace(/,\s*$/g, "").trim(),
+        `${cityPart || normalized}, ${statePart || ""}, ${pin || ""}`.replace(/,\s*$/g, "").trim(),
+        `${cityPart || normalized}, ${statePart || ""}`.replace(/,\s*$/g, "").trim(),
+        pin ? `${pin}, India` : "",
+      ].filter(Boolean)));
+
+      let geo: any = null;
+      for (const candidate of attempts) {
         try {
-          geo = await geocodeOnce(a + (/, India$/i.test(a) ? "" : ", India"));
+          geo = await geocodeOnce(candidate);
           if (geo) {
-            console.debug("Geocode success for attempt:", a);
+            console.debug("Geocode success for attempt:", candidate);
             break;
           }
-        } catch (e) {
-          console.warn("Geocode attempt failed for", a, e);
+        } catch (e: any) {
+          if (e?.name === "AbortError") throw e;
+          console.warn("Geocode attempt failed for", candidate, e);
         }
       }
 
+      if (requestId !== checkRequestIdRef.current) {
+        return null;
+      }
+
       if (!geo) {
-        // Could not geocode the address — mark addressNotFound and avoid false negative
         console.warn("Unable to geocode customer address for query:", addressQuery);
         setAddressNotFound(true);
         setDeliveryAvailable(null);
@@ -153,7 +160,9 @@ function Checkout() {
       setDeliveryAvailable(ok);
       return ok;
     } catch (err) {
-      if ((err as any)?.name === "AbortError") return null;
+      if ((err as any)?.name === "AbortError") {
+        return null;
+      }
       console.warn("Delivery check failed", err);
       setDeliveryAvailable(null);
       setAddressNotFound(false);
@@ -161,7 +170,9 @@ function Checkout() {
       setDeliveryError("Delivery check failed — please retry");
       return null;
     } finally {
-      setCheckingDelivery(false);
+      if (checkRequestIdRef.current === 0 || requestId === checkRequestIdRef.current) {
+        setCheckingDelivery(false);
+      }
     }
   };
 
@@ -422,6 +433,38 @@ function Checkout() {
       if (ie) throw ie;
 
       await supabase.from("cart_items").delete().eq("user_id", user.id);
+
+      // Send admin email after the order has been created successfully.
+      // This call is intentionally fire-and-forget from the customer's perspective.
+      // If the email API fails, the order stays saved and the customer still sees success.
+      try {
+        const orderNotificationPayload = {
+          orderId: String(order.id),
+          customerName: addr.full_name,
+          customerPhone: addr.phone,
+          customerEmail: user.email || "",
+          deliveryAddress: [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean).join(", "),
+          orderItems: items.map((item) => ({
+            name: item.products?.name || "Product",
+            quantity: item.quantity,
+            price: Number(item.variant_price ?? item.products?.price ?? 0),
+            subtotal: Number((item.variant_price ?? item.products?.price ?? 0) * item.quantity),
+          })),
+          quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+          totalAmount: total,
+          paymentMethod: "Cash on Delivery",
+          orderTime: new Date().toISOString(),
+        };
+
+        await fetch('/api/notify-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderNotificationPayload),
+        });
+      } catch (notificationError) {
+        console.error('Order notification call failed after order creation:', notificationError);
+      }
+
       toast.success("Order placed successfully!");
       navigate({ to: "/orders" });
     } catch (err: any) {

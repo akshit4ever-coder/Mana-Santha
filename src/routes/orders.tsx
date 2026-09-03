@@ -50,15 +50,29 @@ function OrdersPage() {
                   <Badge className={statusColor[o.status] ?? ""}>{o.status.replace(/_/g, " ")}</Badge>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
-                  <div className="flex flex-wrap gap-2">
-                    {o.order_items?.slice(0, 4).map((it: any) => (
-                      <div key={it.id} className="flex items-center gap-2 rounded-lg border bg-secondary/40 px-2 py-1 text-xs">
-                        <img src={it.image_url ?? ""} alt="" className="h-8 w-8 rounded object-cover" />
-                        <span className="line-clamp-1 max-w-40">{it.name}</span>
-                        <span className="text-muted-foreground">× {it.quantity}</span>
-                      </div>
-                    ))}
-                    {o.order_items?.length > 4 && (<div className="rounded-lg bg-secondary px-2 py-1 text-xs">+{o.order_items.length - 4} more</div>)}
+                  <div className="space-y-3">
+                    <div className="rounded-lg border bg-secondary/20 p-3 text-sm">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Delivery to</div>
+                      <div className="mt-1 font-medium">{o.address_snapshot?.full_name || user.full_name || "Customer"}</div>
+                      <div className="text-muted-foreground">{o.address_snapshot?.phone || user.phone || "Phone not available"}</div>
+                      <div className="text-muted-foreground">{[
+                        o.address_snapshot?.line1,
+                        o.address_snapshot?.line2,
+                        o.address_snapshot?.city,
+                        o.address_snapshot?.state,
+                        o.address_snapshot?.pincode,
+                      ].filter(Boolean).join(", ") || "Address not available"}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {o.order_items?.slice(0, 4).map((it: any) => (
+                        <div key={it.id} className="flex items-center gap-2 rounded-lg border bg-secondary/40 px-2 py-1 text-xs">
+                          <img src={it.image_url ?? ""} alt="" className="h-8 w-8 rounded object-cover" />
+                          <span className="line-clamp-1 max-w-40">{it.name}</span>
+                          <span className="text-muted-foreground">× {it.quantity}</span>
+                        </div>
+                      ))}
+                      {o.order_items?.length > 4 && (<div className="rounded-lg bg-secondary px-2 py-1 text-xs">+{o.order_items.length - 4} more</div>)}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total</div>

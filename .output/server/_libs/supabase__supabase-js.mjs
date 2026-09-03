@@ -3,8 +3,17 @@ import { t as PostgrestClient } from "./supabase__postgrest-js.mjs";
 import { t as RealtimeClient } from "./supabase__realtime-js+unenv.mjs";
 import { t as StorageClient } from "./@supabase/storage-js+[...].mjs";
 import { t as AuthClient } from "./supabase__auth-js.mjs";
+//#region node_modules/@supabase/supabase-js/dist/tracingRegistry.mjs
+var EXTRACTOR_KEY = Symbol.for("@supabase/supabase-js.traceContextExtractor");
+/**
+* The currently registered trace context extractor, if any.
+*/
+function getTraceContextExtractor() {
+	return globalThis[EXTRACTOR_KEY];
+}
+//#endregion
 //#region node_modules/@supabase/supabase-js/dist/index.mjs
-var version = "2.110.8";
+var version = "2.112.4";
 var JS_ENV = "";
 var JS_RUNTIME_VERSION;
 if (typeof Deno !== "undefined") {
@@ -34,71 +43,6 @@ var DEFAULT_TRACE_PROPAGATION_OPTIONS = {
 	enabled: false,
 	respectSamplingDecision: true
 };
-function __awaiter(thisArg, _arguments, P, generator) {
-	function adopt(value) {
-		return value instanceof P ? value : new P(function(resolve) {
-			resolve(value);
-		});
-	}
-	return new (P || (P = Promise))(function(resolve, reject) {
-		function fulfilled(value) {
-			try {
-				step(generator.next(value));
-			} catch (e) {
-				reject(e);
-			}
-		}
-		function rejected(value) {
-			try {
-				step(generator["throw"](value));
-			} catch (e) {
-				reject(e);
-			}
-		}
-		function step(result) {
-			result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-		}
-		step((generator = generator.apply(thisArg, _arguments || [])).next());
-	});
-}
-var otelModulePromise = null;
-var OTEL_PKG = "@opentelemetry/api";
-function loadOtel() {
-	if (otelModulePromise === null) otelModulePromise = import(
-		/* webpackIgnore: true */
-		/* turbopackIgnore: true */
-		/* @vite-ignore */
-		OTEL_PKG
-).catch(() => null);
-	return otelModulePromise;
-}
-/**
-* Extract trace context from the OpenTelemetry API.
-*
-* Returns null if `@opentelemetry/api` is not installed or there is no active
-* trace context. The dynamic import is cached after the first call.
-*
-* @returns Trace context with traceparent, tracestate, and baggage headers, or null if unavailable
-*/
-function extractTraceContext() {
-	return __awaiter(this, void 0, void 0, function* () {
-		try {
-			const otel = yield loadOtel();
-			if (!otel || !otel.propagation || !otel.context) return null;
-			const carrier = {};
-			otel.propagation.inject(otel.context.active(), carrier);
-			const traceparent = carrier["traceparent"];
-			if (!traceparent) return null;
-			return {
-				traceparent,
-				tracestate: carrier["tracestate"],
-				baggage: carrier["baggage"]
-			};
-		} catch (_a) {
-			return null;
-		}
-	});
-}
 /**
 * Parse W3C traceparent header according to the specification.
 *
@@ -331,7 +275,7 @@ var fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, trac
 			if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
 		}
 		if (traceTargets) {
-			const traceHeaders = await getTraceHeaders(input, traceTargets, respectSampling);
+			const traceHeaders = getTraceHeaders(input, traceTargets, respectSampling);
 			if (traceHeaders) {
 				if (traceHeaders.traceparent && !headers.has("traceparent")) headers.set("traceparent", traceHeaders.traceparent);
 				if (traceHeaders.tracestate && !headers.has("tracestate")) headers.set("tracestate", traceHeaders.tracestate);
@@ -341,13 +285,31 @@ var fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, trac
 		return fetch$1(input, _objectSpread2(_objectSpread2({}, init), {}, { headers }));
 	};
 };
-async function getTraceHeaders(input, targets, respectSampling) {
+var warnedMissingTracingRuntime = false;
+var warnedNonW3CPropagator = false;
+function getTraceHeaders(input, targets, respectSampling) {
+	const extractTraceContext = getTraceContextExtractor();
+	if (!extractTraceContext) {
+		if (!warnedMissingTracingRuntime) {
+			warnedMissingTracingRuntime = true;
+			console.warn("@supabase/supabase-js: tracePropagation is enabled but the tracing runtime is not loaded, so trace headers will not be attached. Add `import '@supabase/supabase-js/tracing'` at your application entry point (requires the OpenTelemetry API package to be installed). The CDN/UMD build does not support trace propagation.");
+		}
+		return null;
+	}
 	if (!shouldPropagateToTarget(typeof input === "string" ? input : input instanceof URL ? input : input.url, targets)) return null;
-	const traceContext = await extractTraceContext();
-	if (!traceContext || !traceContext.traceparent) return null;
+	const traceContext = extractTraceContext();
+	if (!traceContext || !traceContext.traceparent) {
+		var _traceContext$carrier;
+		if ((traceContext === null || traceContext === void 0 || (_traceContext$carrier = traceContext.carrierKeys) === null || _traceContext$carrier === void 0 ? void 0 : _traceContext$carrier.length) && !warnedNonW3CPropagator) {
+			warnedNonW3CPropagator = true;
+			const sentryHint = traceContext.carrierKeys.includes("sentry-trace") ? " Sentry detected: set `propagateTraceparent: true` in Sentry.init() to emit it." : " Configure your tracing SDK to emit W3C trace context on outgoing requests.";
+			console.warn(`@supabase/supabase-js: tracePropagation is enabled and a tracing SDK is active, but its propagator wrote [${traceContext.carrierKeys.join(", ")}] and no W3C traceparent header, so trace headers will not be attached.` + sentryHint);
+		}
+		return null;
+	}
 	if (respectSampling) {
 		const parsed = parseTraceParent(traceContext.traceparent);
-		if (parsed && !parsed.isSampled) return null;
+		if (parsed && !parsed.isSampled) return { traceparent: traceContext.traceparent };
 	}
 	return traceContext;
 }
@@ -599,10 +561,12 @@ var SupabaseClient = class {
 	* Opt in to W3C trace context propagation so the `trace_id` from your
 	* client-side spans is attached to Supabase requests and appears in API
 	* Gateway and Edge Function logs. Requires `@opentelemetry/api` to be
-	* installed in your application. See [Tracing with the JS SDK](https://supabase.com/docs/guides/telemetry/client-side-tracing).
+	* installed in your application and the tracing runtime to be loaded via
+	* `import '@supabase/supabase-js/tracing'`. See [Tracing with the JS SDK](https://supabase.com/docs/guides/telemetry/client-side-tracing).
 	*
 	* @example With OpenTelemetry tracing
 	* ```ts
+	* import '@supabase/supabase-js/tracing'
 	* import { createClient } from '@supabase/supabase-js'
 	* import { trace } from '@opentelemetry/api'
 	*
@@ -665,7 +629,8 @@ var SupabaseClient = class {
 			schema: settings.db.schema,
 			fetch: this.fetch,
 			timeout: settings.db.timeout,
-			urlLengthLimit: settings.db.urlLengthLimit
+			urlLengthLimit: settings.db.urlLengthLimit,
+			retry: settings.db.retry
 		});
 		this.storage = new StorageClient(this.storageUrl.href, this.headers, this.fetch, options === null || options === void 0 ? void 0 : options.storage);
 		if (!settings.accessToken) this._listenForAuthEvents();
