@@ -29,17 +29,24 @@ function formatMoney(amount: number | string) {
 }
 
 export async function sendOrderNotificationEmail(payload: OrderNotificationPayload) {
-  const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = process.env;
+  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const fromEmail = process.env.EMAIL_FROM || process.env.GMAIL_USER || smtpUser;
 
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
-    throw new Error('Missing Gmail configuration. Please set GMAIL_USER, GMAIL_APP_PASSWORD, and ADMIN_EMAIL in Vercel environment variables.');
+  if (!smtpUser || !smtpPass || !adminEmail) {
+    throw new Error(
+      'Missing SMTP configuration. Please set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD and ADMIN_EMAIL in the deployment environment.',
+    );
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: (process.env.SMTP_SECURE ?? 'true') === 'true',
     auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
+      user: smtpUser,
+      pass: smtpPass,
     },
   });
 
@@ -131,12 +138,14 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
     </html>
   `;
 
-  await transporter.sendMail({
-    from: `Mana Santha <${GMAIL_USER}>`,
-    to: ADMIN_EMAIL,
-    subject: '🛒 New Order Received - Mana Santha',
-    html,
-    text: `
+  try {
+    await transporter.sendMail({
+      from: `Mana Santha <${fromEmail}>`,
+      to: adminEmail,
+      replyTo: payload.customerEmail || smtpUser,
+      subject: '🛒 New Order Received - Mana Santha',
+      html,
+      text: `
 New Order Received
 
 Order ID: ${payload.orderId}
@@ -152,6 +161,10 @@ Products:
 ${payload.orderItems
   .map((item) => `${item.name} x ${item.quantity} - ${formatMoney(item.subtotal)}`)
   .join('\n')}
-    `,
-  });
+      `,
+    });
+  } catch (error) {
+    console.error('SMTP send failed:', error);
+    throw error;
+  }
 }

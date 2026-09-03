@@ -92,15 +92,44 @@ export const useCart = (userId?: string) =>
     },
   });
 
+async function getAuthenticatedCartUser() {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  console.log("Supabase user:", user);
+
+  if (error) {
+    console.error("Supabase getUser error:", error);
+    throw new Error("Your Supabase session is invalid or expired. Please sign in again.");
+  }
+
+  if (!user?.id) {
+    console.error("Supabase user is null. Session was not restored.");
+    throw new Error("Please sign in to add items to cart.");
+  }
+
+  return user;
+}
+
 export function useAddToCart(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ productId, quantity = 1, variant }: { productId: string; quantity?: number; variant?: any }) => {
-      if (!userId) throw new Error("Please sign in");
+      const authUser = await getAuthenticatedCartUser();
+      const resolvedUserId = userId ?? authUser.id;
+
+      if (!resolvedUserId) throw new Error("Please sign in");
+      if (resolvedUserId !== authUser.id) {
+        console.error("User mismatch in cart write:", { propUserId: userId, authUserId: authUser.id });
+        throw new Error("Session mismatch detected. Please sign in again.");
+      }
+
       let query = supabase
         .from("cart_items")
         .select("id, quantity")
-        .eq("user_id", userId)
+        .eq("user_id", authUser.id)
         .eq("product_id", productId);
       if (variant?.id) {
         query = query.eq("variant_id", variant.id);
@@ -119,7 +148,8 @@ export function useAddToCart(userId?: string) {
         const { error } = await supabase
           .from("cart_items")
           .update({ quantity: existing.quantity + quantity })
-          .eq("id", existing.id);
+          .eq("id", existing.id)
+          .eq("user_id", authUser.id);
         if (error) {
           if (isMissingTableError(error)) {
             throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
@@ -127,7 +157,7 @@ export function useAddToCart(userId?: string) {
           throw error;
         }
       } else {
-        const insertPayload: any = { user_id: userId, product_id: productId, quantity };
+        const insertPayload: any = { user_id: authUser.id, product_id: productId, quantity };
         if (variant) {
           insertPayload.variant_id = variant.id ?? null;
           insertPayload.variant_name = variant.name ?? null;
@@ -136,6 +166,9 @@ export function useAddToCart(userId?: string) {
           insertPayload.variant_unit = variant.unit ?? null;
           insertPayload.variant_max_qty = variant.max_qty ?? null;
         }
+
+        console.log("Insert payload:", insertPayload);
+
         const { error } = await supabase.from("cart_items").insert(insertPayload);
         if (error) {
           if (isMissingTableError(error)) {
@@ -157,8 +190,15 @@ export function useUpdateCartQty(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, quantity }: { id: string; quantity: number }) => {
+      const authUser = await getAuthenticatedCartUser();
+      const resolvedUserId = userId ?? authUser.id;
+
+      if (!resolvedUserId || resolvedUserId !== authUser.id) {
+        throw new Error("Your cart session is invalid. Please sign in again.");
+      }
+
       if (quantity <= 0) {
-        const { error } = await supabase.from("cart_items").delete().eq("id", id);
+        const { error } = await supabase.from("cart_items").delete().eq("id", id).eq("user_id", authUser.id);
         if (error) {
           if (isMissingTableError(error)) {
             throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
@@ -166,7 +206,7 @@ export function useUpdateCartQty(userId?: string) {
           throw error;
         }
       } else {
-        const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", id);
+        const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", id).eq("user_id", authUser.id);
         if (error) {
           if (isMissingTableError(error)) {
             throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
@@ -183,7 +223,14 @@ export function useRemoveCartItem(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("cart_items").delete().eq("id", id);
+      const authUser = await getAuthenticatedCartUser();
+      const resolvedUserId = userId ?? authUser.id;
+
+      if (!resolvedUserId || resolvedUserId !== authUser.id) {
+        throw new Error("Your cart session is invalid. Please sign in again.");
+      }
+
+      const { error } = await supabase.from("cart_items").delete().eq("id", id).eq("user_id", authUser.id);
       if (error) {
         if (isMissingTableError(error)) {
           throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");

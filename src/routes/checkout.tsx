@@ -456,11 +456,21 @@ function Checkout() {
           orderTime: new Date().toISOString(),
         };
 
-        await fetch('/api/notify-order', {
+        const notificationResponse = await fetch('/api/notify-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderNotificationPayload),
         });
+
+        const notificationResult = await notificationResponse.json().catch(() => null);
+        if (!notificationResponse.ok || notificationResult?.success === false) {
+          console.error('Order notification failed after order creation:', {
+            status: notificationResponse.status,
+            body: notificationResult,
+          });
+        } else {
+          console.log('Order notification sent successfully:', notificationResult);
+        }
       } catch (notificationError) {
         console.error('Order notification call failed after order creation:', notificationError);
       }

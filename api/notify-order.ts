@@ -89,7 +89,8 @@ export default async function handler(request: Request) {
     // We still return success to the customer while logging the issue for investigation.
     return Response.json(
       {
-        success: true,
+        success: false,
+        notificationSent: false,
         message: 'Order was created successfully. Admin notification delivery failed, but the order remains saved.',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
