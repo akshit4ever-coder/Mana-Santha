@@ -28,7 +28,10 @@ function AuthPage() {
 
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
+  const [resetPhone, setResetPhone] = useState("");
+  const [resetFullName, setResetFullName] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   // login method fixed to password-only
@@ -207,13 +210,37 @@ function AuthPage() {
 
                 {showReset && (
                   <div className="mt-4 rounded-md border p-4 bg-background/50">
-                    <div className="text-sm text-muted-foreground mb-2">Enter your email to receive a password reset link.</div>
+                    <div className="text-sm text-muted-foreground mb-2">Reset password using your registered phone number and full name.</div>
                     <Input
-                      id="reset-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
+                      id="reset-phone"
+                      type="tel"
+                      placeholder="9876543210"
+                      value={resetPhone}
+                      onChange={(e) => setResetPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className="mb-2"
+                    />
+                    <Input
+                      id="reset-fullname"
+                      type="text"
+                      placeholder="Your full name"
+                      value={resetFullName}
+                      onChange={(e) => setResetFullName(e.target.value)}
+                      className="mb-2"
+                    />
+                    <Input
+                      id="reset-newpass"
+                      type="password"
+                      placeholder="New password (min 6 chars)"
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      className="mb-2"
+                    />
+                    <Input
+                      id="reset-confpass"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
                       className="mb-2"
                     />
                     <div className="flex gap-2">
@@ -221,28 +248,48 @@ function AuthPage() {
                         type="button"
                         disabled={resetLoading}
                         onClick={async () => {
-                          if (!resetEmail || !resetEmail.includes("@")) {
-                            toast.error("Please enter a valid email address");
+                          if (resetPhone.replace(/\D/g, "").length !== 10) {
+                            toast.error("Please enter a valid 10-digit phone number");
                             return;
                           }
+                          if (!resetFullName.trim()) {
+                            toast.error("Please enter your full name");
+                            return;
+                          }
+                          if (resetNewPassword.length < 6) {
+                            toast.error("Password must be at least 6 characters");
+                            return;
+                          }
+                          if (resetNewPassword !== resetConfirmPassword) {
+                            toast.error("Passwords do not match");
+                            return;
+                          }
+
                           setResetLoading(true);
                           try {
-                            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
-                            if (error) throw error;
-                            toast.success("Password reset link sent. Check your email.");
-                            setShowReset(false);
-                            setResetEmail("");
+                            const mod = await import("../serverFns/resetPasswordByPhone.functions");
+                            const res = await mod.resetPasswordByPhone({ data: { phone: resetPhone, fullName: resetFullName, newPassword: resetNewPassword } });
+                            if (!res || res.success === false) {
+                              toast.error(res?.error || "Failed to reset password");
+                            } else {
+                              toast.success("Password updated. Please sign in with your new password.");
+                              setShowReset(false);
+                              setResetPhone("");
+                              setResetFullName("");
+                              setResetNewPassword("");
+                              setResetConfirmPassword("");
+                            }
                           } catch (err: any) {
-                            toast.error(err.message || "Failed to send reset link");
+                            toast.error(err?.message || "Reset failed");
                           } finally {
                             setResetLoading(false);
                           }
                         }}
                         className="rounded-full"
                       >
-                        {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send reset link"}
+                        {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Reset Password"}
                       </Button>
-                      <Button type="button" variant="ghost" onClick={() => { setShowReset(false); setResetEmail(""); }}>
+                      <Button type="button" variant="ghost" onClick={() => { setShowReset(false); setResetPhone(""); setResetFullName(""); setResetNewPassword(""); setResetConfirmPassword(""); }}>
                         Cancel
                       </Button>
                     </div>
