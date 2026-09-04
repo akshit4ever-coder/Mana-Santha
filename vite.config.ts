@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Dev server proxy: forward /api requests to the TanStack Start/Nitro server
+  // No dev proxy configured here. Use `npm run dev` (npx vercel dev)
+  // to run frontend + serverless functions from the same origin.
+  vite: {},
 });

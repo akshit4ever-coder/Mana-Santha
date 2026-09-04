@@ -456,20 +456,23 @@ function Checkout() {
           orderTime: new Date().toISOString(),
         };
 
-        const notificationResponse = await fetch('/api/notify-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderNotificationPayload),
-        });
-
-        const notificationResult = await notificationResponse.json().catch(() => null);
-        if (!notificationResponse.ok || notificationResult?.success === false) {
-          console.error('Order notification failed after order creation:', {
-            status: notificationResponse.status,
-            body: notificationResult,
-          });
-        } else {
-          console.log('Order notification sent successfully:', notificationResult);
+        // Call the TanStack Start server function for notifications.
+        // This imports the server function dynamically so the client code
+        // delegates the work to the server at runtime without needing a
+        // separate backend process or a proxy.
+        try {
+          // Import the client stub for the server function. This import is
+          // safe in the browser because `notifyOrder` is created via
+          // `createServerFn` and will not bundle server-only modules.
+          const { notifyOrder } = await import('../serverFns/notifyOrder.functions');
+          const res = await notifyOrder({ data: orderNotificationPayload as any });
+          if (!res || res.success === false) {
+            console.error('Order notification failed after order creation:', res);
+          } else {
+            console.log('Order notification sent successfully:', res);
+          }
+        } catch (notificationError) {
+          console.error('Order notification call failed after order creation:', notificationError);
         }
       } catch (notificationError) {
         console.error('Order notification call failed after order creation:', notificationError);

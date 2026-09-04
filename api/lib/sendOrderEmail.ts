@@ -29,6 +29,13 @@ function formatMoney(amount: number | string) {
 }
 
 export async function sendOrderNotificationEmail(payload: OrderNotificationPayload) {
+  console.log("========== EMAIL FUNCTION STARTED ==========");
+  console.log({
+    SMTP_USER: !!process.env.SMTP_USER,
+    SMTP_PASS: !!process.env.SMTP_PASS,
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+  });
   const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
   const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -49,6 +56,15 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
       pass: smtpPass,
     },
   });
+
+  // Verify SMTP connection early so we get a clear error in logs when creds/host are invalid.
+  try {
+    await transporter.verify();
+    console.log("✅ SMTP verified");
+  } catch (err: any) {
+    console.error("❌ SMTP verify failed", err);
+    throw err;
+  }
 
   const rowsHtml = payload.orderItems
     .map(
@@ -163,8 +179,17 @@ ${payload.orderItems
   .join('\n')}
       `,
     });
-  } catch (error) {
-    console.error('SMTP send failed:', error);
+    console.log('✅ Admin notification email sent successfully');
+  } catch (error: any) {
+    // Strongly log the SMTP error details for Vercel function logs.
+    const errObj: any = { message: error?.message, stack: error?.stack };
+    // include common nodemailer fields when present
+    if (error && typeof error === 'object') {
+      errObj.code = (error as any).code;
+      errObj.response = (error as any).response;
+      errObj.responseCode = (error as any).responseCode;
+    }
+    console.error('SMTP send failed:', JSON.stringify(errObj, null, 2));
     throw error;
   }
 }
