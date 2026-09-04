@@ -182,8 +182,8 @@ function AuthPage() {
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                       required
-                      minLength={3}
                       minLength={6}
+                      maxLength={10}
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="pr-10"
