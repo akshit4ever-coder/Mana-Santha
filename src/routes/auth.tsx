@@ -7,6 +7,7 @@ import { Input } from "@/components/UI/input";
 import { Label } from "@/components/UI/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/UI/tabs";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 import { signInWithIdentifierAndPassword, registerNewUser } from "@/lib/phone-auth";
 import { toast } from "sonner";
 import { Loader2, Leaf, KeyRound, Eye, EyeOff } from "lucide-react";
@@ -26,6 +27,9 @@ function AuthPage() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   // login method fixed to password-only
 
@@ -194,6 +198,56 @@ function AuthPage() {
                     </button>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between mt-2">
+                  <button type="button" className="text-sm text-primary underline" onClick={() => setShowReset((s) => !s)}>
+                    Forgot password?
+                  </button>
+                </div>
+
+                {showReset && (
+                  <div className="mt-4 rounded-md border p-4 bg-background/50">
+                    <div className="text-sm text-muted-foreground mb-2">Enter your email to receive a password reset link.</div>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        disabled={resetLoading}
+                        onClick={async () => {
+                          if (!resetEmail || !resetEmail.includes("@")) {
+                            toast.error("Please enter a valid email address");
+                            return;
+                          }
+                          setResetLoading(true);
+                          try {
+                            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+                            if (error) throw error;
+                            toast.success("Password reset link sent. Check your email.");
+                            setShowReset(false);
+                            setResetEmail("");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to send reset link");
+                          } finally {
+                            setResetLoading(false);
+                          }
+                        }}
+                        className="rounded-full"
+                      >
+                        {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send reset link"}
+                      </Button>
+                      <Button type="button" variant="ghost" onClick={() => { setShowReset(false); setResetEmail(""); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <Button type="submit" disabled={loading} className="w-full rounded-full py-5 text-base font-semibold">
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

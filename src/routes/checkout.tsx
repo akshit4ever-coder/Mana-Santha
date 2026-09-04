@@ -296,7 +296,7 @@ function Checkout() {
 
   const items: any[] = (cart ?? []) as any[];
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
-  const deliveryFee = subtotal > 499 ? 0 : 29;
+  const deliveryFee = subtotal > 899 ? 0 : 29;
   const total = subtotal + deliveryFee;
 
   if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please <Link to="/auth" className="text-primary underline">sign in</Link>.</div></div>);
