@@ -43,6 +43,24 @@ cp .env.example .env
 npm run dev
 ```
 
+## Environment variables
+
+This project uses a single `.env` file for local development and build-time values. To get started:
+
+1. Copy the example file and fill values (do NOT commit `.env`):
+
+```bash
+cp .env.example .env
+```
+
+2. For local dev the server loads `.env` automatically (via `dotenv` in `src/server.ts`).
+
+3. For client-side values (publishable keys) the app expects `VITE_` prefixed variables (for example `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`). Vite exposes these as `import.meta.env.VITE_*`.
+
+4. For production (Vercel), do NOT upload your `.env` file. Instead, add the same variables in the Vercel project settings (Environment variables) under the Server scope. Ensure `SUPABASE_KEY` remains server-only.
+
+Security note: never commit `.env` or your service-role keys to source control.
+
 The checkout flow calls the API route automatically after a successful order is inserted into Supabase.
 
 ## Vercel deployment

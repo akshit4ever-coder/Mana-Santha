@@ -6,14 +6,24 @@ export const useCategories = () =>
   useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      // Select categories and their nested subcategories so category pages can show subcategories
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*, subcategories(*)")
-        .eq("is_active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
+      try {
+        // Select categories and their nested subcategories so category pages can show subcategories
+        const { data, error } = await supabase
+          .from("categories")
+          .select("*, subcategories(*)")
+          .eq("is_active", true)
+          .order("sort_order");
+        if (error) throw error;
+        return data;
+      } catch (err: any) {
+        const msg = err?.message ?? String(err);
+        if (typeof msg === "string" && (msg.includes("Failed to fetch") || msg.includes("hostname") || msg.includes("network") || msg.includes("access control checks"))) {
+          throw new Error(
+            "Unable to reach Supabase backend. Check your network connection and VITE_SUPABASE_URL configuration."
+          );
+        }
+        throw err;
+      }
     },
   });
 
@@ -21,20 +31,30 @@ export const useProducts = (opts?: { categorySlug?: string; featured?: boolean; 
   useQuery({
     queryKey: ["products", opts],
     queryFn: async () => {
-      let q = supabase
-        .from("products")
-        .select("*, categories(name, slug), subcategories(name, slug), product_variants(*)")
-        .eq("is_active", true);
-      if (opts?.featured) q = q.eq("is_featured", true);
-      if (opts?.search) q = q.ilike("name", `%${opts.search}%`);
-      if (opts?.limit) q = q.limit(opts.limit);
-      const { data, error } = await q.order("sort_order", { ascending: true }).order("created_at", { ascending: false });
-      if (error) throw error;
-      let rows = data ?? [];
-      if (opts?.categorySlug) {
-        rows = rows.filter((r: any) => r.categories?.slug === opts.categorySlug);
+      try {
+        let q = supabase
+          .from("products")
+          .select("*, categories(name, slug), subcategories(name, slug), product_variants(*)")
+          .eq("is_active", true);
+        if (opts?.featured) q = q.eq("is_featured", true);
+        if (opts?.search) q = q.ilike("name", `%${opts.search}%`);
+        if (opts?.limit) q = q.limit(opts.limit);
+        const { data, error } = await q.order("sort_order", { ascending: true }).order("created_at", { ascending: false });
+        if (error) throw error;
+        let rows = data ?? [];
+        if (opts?.categorySlug) {
+          rows = rows.filter((r: any) => r.categories?.slug === opts.categorySlug);
+        }
+        return rows;
+      } catch (err: any) {
+        const msg = err?.message ?? String(err);
+        if (typeof msg === "string" && (msg.includes("Failed to fetch") || msg.includes("hostname") || msg.includes("network") || msg.includes("access control checks"))) {
+          throw new Error(
+            "Unable to reach Supabase backend. Check your network connection and VITE_SUPABASE_URL configuration."
+          );
+        }
+        throw err;
       }
-      return rows;
     },
   });
 

@@ -1,0 +1,1 @@
+function e(e){let t=typeof e==`string`?Number(e):e;return Number.isNaN(t)?`₹0`:`₹`+t.toLocaleString(`en-IN`,{maximumFractionDigits:0})}function t(e,t){let n=Number(e),r=Number(t);return!n||n<=r?0:Math.round((n-r)/n*100)}export{e as n,t};

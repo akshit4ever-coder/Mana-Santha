@@ -2,9 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 async function main() {
   const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_KEY;
+  const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error('Set SUPABASE_URL and SUPABASE_KEY (or SUPABASE_PUBLISHABLE_KEY / SUPABASE_SERVICE_ROLE_KEY)');
+    console.error('Set SUPABASE_URL and SUPABASE_KEY (or SUPABASE_PUBLISHABLE_KEY)');
     process.exit(1);
   }
 

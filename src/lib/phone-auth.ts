@@ -130,20 +130,12 @@ export async function signInWithIdentifierAndPassword(identifier: string, passwo
   }
 
   // Fallback raw login attempt
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: rawInput,
-    password: password,
-  });
-
-  if (error) {
-    throw new Error(error.message || "Incorrect login details or password. Please try again.");
-  }
-
-  return {
-    success: true,
-    user: data.user,
-    session: data.session,
-  };
+  // If we reached here, none of the candidate transformations worked.
+  // Avoid making a raw sign-in request with arbitrary input (e.g. a plain full name)
+  // which can cause Supabase to return a 400 Bad Request for invalid email format.
+  throw new Error(
+    "No account matched that identifier. Please sign in using your registered phone number or email."
+  );
 }
 
 /**
