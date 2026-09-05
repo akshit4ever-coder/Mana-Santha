@@ -1,5 +1,3 @@
-// Load .env for local development so server-only env vars (service role key) are available
-import 'dotenv/config';
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -53,14 +51,6 @@ export default {
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
-      // Suppress noisy logs for client-aborted requests (common during HMR/dev reloads)
-      const msg = (error && (error as any).message) ? String((error as any).message).toLowerCase() : "";
-      const name = (error && (error as any).name) ? String((error as any).name).toLowerCase() : "";
-      if (msg === "aborted" || name === "aborterror" || msg.includes("aborted") || msg.includes("abort")) {
-        console.debug("Request was aborted by the client; skipping noisy stack trace.");
-        return new Response(null, { status: 499 });
-      }
-
       console.error(error);
       return new Response(renderErrorPage(), {
         status: 500,

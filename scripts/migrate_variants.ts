@@ -1,15 +1,15 @@
 /**
  * Migration script: create one default product_variant per existing product
  * Usage:
- *   SUPABASE_URL=https://<project>.supabase.co SUPABASE_KEY=<service_role_key> node -r ts-node/register scripts/migrate_variants.ts
+ *   SUPABASE_URL=https://<project>.supabase.co SUPABASE_SERVICE_ROLE_KEY=<service_role_key> node -r ts-node/register scripts/migrate_variants.ts
  */
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error("Please set SUPABASE_URL and SUPABASE_KEY");
+  console.error("Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
   process.exit(1);
 }
 
