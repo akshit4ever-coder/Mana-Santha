@@ -1,3 +1,4 @@
+import "dotenv/config";
 //#region src/lib/error-capture.ts
 var lastCapturedError;
 var TTL_MS = 5e3;
@@ -97,7 +98,7 @@ function renderErrorPage() {
 //#region src/server.ts
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./assets/server-DOeVVFqk.js").then((n) => n.t).then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./assets/server-C6wi21C3.js").then((n) => n.t).then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 async function normalizeCatastrophicSsrResponse(response) {
@@ -123,6 +124,12 @@ var server_default = { async fetch(request, env, ctx) {
 	try {
 		return await normalizeCatastrophicSsrResponse(await (await getServerEntry()).fetch(request, env, ctx));
 	} catch (error) {
+		const msg = error && error.message ? String(error.message).toLowerCase() : "";
+		const name = error && error.name ? String(error.name).toLowerCase() : "";
+		if (msg === "aborted" || name === "aborterror" || msg.includes("aborted") || msg.includes("abort")) {
+			console.debug("Request was aborted by the client; skipping noisy stack trace.");
+			return new Response(null, { status: 499 });
+		}
 		console.error(error);
 		return new Response(renderErrorPage(), {
 			status: 500,

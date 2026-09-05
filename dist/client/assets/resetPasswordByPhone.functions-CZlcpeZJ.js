@@ -1,1 +1,0 @@
-import{t as e}from"./createServerFn-WOUHNpCd.js";import{k as t}from"./index-nEO3n-Ts.js";var n=e({method:`POST`}).handler(t(`a169b7eef8fa33d86a378da24fae2e11e1e384979a1579b5f9262a790b318192`));export{n as resetPasswordByPhone};
