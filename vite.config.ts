@@ -8,7 +8,11 @@ import { nitro } from "nitro/vite";
 export default defineConfig({
   plugins: [
     // Nitro plugin must run before other plugins so it can generate server functions
-    nitro({ preset: "vercel" as any }),
+    nitro({ preset: "vercel" as any,
+      externals: {
+        inline: ["tslib"],
+      },
+    }),
     tanstackStart({ server: { entry: "server" } }),
     react(),
     tailwind(),
