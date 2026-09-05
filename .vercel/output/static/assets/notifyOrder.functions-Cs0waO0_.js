@@ -1,1 +1,0 @@
-import{t as e}from"./createServerFn-CTT55nmx.js";import{k as t}from"./index-CkXPNBa7.js";var n=e({method:`POST`}).handler(t(`eb13faa37431209b1eff913458093db5164eccfbabc251d3b28af01fded04681`));export{n as notifyOrder};
