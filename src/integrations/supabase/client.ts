@@ -2,6 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+const MISSING_SUPABASE_MESSAGE =
+  'Supabase is not connected yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Lovable Cloud or your local .env file.';
+
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
@@ -16,7 +19,6 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
       new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     }
 
-    // New Supabase API keys are opaque strings, not bearer JWTs.
     if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
       headers.delete('Authorization');
     }
@@ -26,41 +28,103 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
   };
 }
 
+function getSupabaseConfig() {
+  const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
+
+  return { url, key };
+}
+
+function createFallbackError() {
+  return new Error(MISSING_SUPABASE_MESSAGE);
+}
+
+function createFallbackQueryBuilder() {
+  const fail = async () => ({ data: null, error: createFallbackError() });
+  const chain: any = {
+    select: fail,
+    insert: fail,
+    update: fail,
+    upsert: fail,
+    delete: fail,
+    eq: () => chain,
+    order: () => chain,
+    match: () => chain,
+    limit: () => chain,
+    maybeSingle: fail,
+    single: fail,
+  };
+  return chain;
+}
+
+function createFallbackClient() {
+  const auth = {
+    async getSession() {
+      return { data: { session: null }, error: null };
+    },
+    onAuthStateChange() {
+      return {
+        data: {
+          subscription: {
+            unsubscribe() {},
+          },
+        },
+      };
+    },
+    async signInWithPassword() {
+      return { data: { user: null, session: null }, error: createFallbackError() };
+    },
+    async signUp() {
+      return { data: { user: null, session: null }, error: createFallbackError() };
+    },
+    async signInWithOtp() {
+      return { data: {}, error: createFallbackError() };
+    },
+    async verifyOtp() {
+      return { data: { user: null, session: null }, error: createFallbackError() };
+    },
+    async signOut() {
+      return { error: null };
+    },
+  };
+
+  const storage = {
+    from() {
+      return {
+        getPublicUrl: () => ({ data: { publicUrl: '' }, error: null }),
+      };
+    },
+  };
+
+  const from = () => createFallbackQueryBuilder();
+
+  return { auth, storage, from };
+}
 
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const { url, key } = getSupabaseConfig();
 
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-    ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
-    console.error(`[Supabase] ${message}`);
-    throw new Error(message);
+  if (!url || !key) {
+    console.warn(`[Supabase] ${MISSING_SUPABASE_MESSAGE}`);
+    return createFallbackClient() as any;
   }
 
-  console.log("🚀 Supabase Client Initialized with URL:", SUPABASE_URL);
+  console.log('🚀 Supabase Client Initialized with URL:', url);
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createClient<Database>(url, key, {
     global: {
-      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+      fetch: createSupabaseFetch(key),
     },
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
-    }
+    },
   });
 }
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
 export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
   get(_, prop, receiver) {
     if (!_supabase) _supabase = createSupabaseClient();
