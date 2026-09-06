@@ -19,12 +19,43 @@ const statusColor: Record<string, string> = {
   refunded: "bg-gray-500/15 text-gray-700",
 };
 
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["packed", "cancelled"],
+  packed: ["out_for_delivery", "cancelled"],
+  out_for_delivery: ["delivered"],
+  delivered: ["refunded"],
+  cancelled: [],
+  refunded: [],
+};
+
 const formatDeliveryAddress = (snapshot: any) => {
   if (!snapshot) return "Address not available";
   return [snapshot.line1, snapshot.line2, snapshot.city, snapshot.state, snapshot.pincode]
     .filter(Boolean)
     .join(", ");
 };
+
+function getAllowedStatuses(currentStatus: string) {
+  const value = String(currentStatus || "").trim().toLowerCase();
+  if (!value) return STATUSES;
+
+  if (value === "delivered") return [];
+  if (value === "cancelled" || value === "refunded") return [];
+
+  const allowed = ALLOWED_TRANSITIONS[value] || [];
+  const currentIndex = STATUSES.indexOf(value);
+
+  if (allowed.length > 0) {
+    return [value, ...allowed];
+  }
+
+  if (currentIndex >= 0) {
+    return [value];
+  }
+
+  return STATUSES;
+}
 
 function AdminOrders() {
   const qc = useQueryClient();
@@ -36,9 +67,6 @@ function AdminOrders() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      console.log('Orders:', data);
-      console.log('Orders error:', error);
-
       if (error) throw error;
       return data ?? [];
     },
@@ -46,11 +74,18 @@ function AdminOrders() {
 
   const upd = useMutation({
     mutationFn: async ({ id, status }: any) => {
-      const { error } = await supabase.from("orders").update({ status }).eq("id", id);
-      if (error) throw error;
+      const { updateOrderStatus } = await import("@/serverFns/updateOrderStatus.functions");
+      const result = await updateOrderStatus({ data: { id, status } });
+      if (!result?.success) {
+        throw new Error(result?.error || "Invalid order status transition.");
+      }
+      return result;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-orders"] }); toast.success("Order updated"); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+      toast.success("Order updated");
+    },
+    onError: (e: Error) => toast.error(e.message || "Invalid order status transition."),
   });
 
   return (
@@ -74,7 +109,12 @@ function AdminOrders() {
               const customerName = o.address_snapshot?.full_name || "Unknown customer";
               const customerPhone = o.address_snapshot?.phone || "No phone";
               const deliveryAddress = formatDeliveryAddress(o.address_snapshot);
-              const isCancelled = String(o.status || "").toLowerCase() === "cancelled";
+              const currentStatus = String(o.status || "").toLowerCase();
+              const isCancelled = currentStatus === "cancelled";
+              const isDelivered = currentStatus === "delivered";
+              const isRefunded = currentStatus === "refunded";
+              const allowedStatuses = getAllowedStatuses(currentStatus);
+              const cancelledLabel = o.cancelled_by === "admin" ? "Cancelled by Admin" : "Cancelled by Customer";
 
               return (
                 <TableRow key={o.id}>
@@ -86,7 +126,7 @@ function AdminOrders() {
                     <div className="font-medium">{customerName}</div>
                     <div className="text-xs text-muted-foreground">{customerPhone}</div>
                     {isCancelled && (
-                      <div className="mt-1 text-[10px] uppercase tracking-wide text-red-600">Cancelled by Customer</div>
+                      <div className="mt-1 text-[10px] uppercase tracking-wide text-red-600">{cancelledLabel}</div>
                     )}
                   </TableCell>
                   <TableCell className="text-sm">
@@ -101,17 +141,37 @@ function AdminOrders() {
                   <TableCell className="text-sm uppercase">{o.payment_method}</TableCell>
                   <TableCell>
                     <div className="space-y-2">
-                      <Select value={o.status} onValueChange={(v) => upd.mutate({ id: o.id, status: v })}>
-                        <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                        <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-                      </Select>
-
-                      {isCancelled && (
-                        <div className="rounded bg-red-500/10 px-2 py-1 text-center text-xs font-medium text-red-700">Cancelled</div>
+                      {isDelivered ? (
+                        <div className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                          ✓ Delivered (Final)
+                        </div>
+                      ) : isCancelled || isRefunded ? (
+                        <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                          {isCancelled ? cancelledLabel : "Refunded"}
+                        </div>
+                      ) : (
+                        <Select value={o.status} onValueChange={(v) => upd.mutate({ id: o.id, status: v })}>
+                          <SelectTrigger className="w-44">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allowedStatuses.map((s) => (
+                              <SelectItem key={s} value={s} disabled={!ALLOWED_TRANSITIONS[currentStatus]?.includes(s) && s !== currentStatus}>
+                                {s.replace(/_/g, " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       )}
 
                       {isCancelled && o.updated_at && (
                         <div className="text-[10px] text-muted-foreground">Cancelled at: {new Date(o.updated_at).toLocaleString("en-IN")}</div>
+                      )}
+
+                      {isDelivered && (
+                        <div className="text-[10px] text-muted-foreground">
+                          This order has been delivered and can no longer be modified.
+                        </div>
                       )}
                     </div>
                   </TableCell>
