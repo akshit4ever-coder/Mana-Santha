@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { clearSupabaseAuthStorage, getRememberMePreference, resetSupabaseClient, supabase } from "@/integrations/supabase/client";
 
 interface AuthCtx {
   session: Session | null;
@@ -64,17 +64,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // 1. Initial Session check
-    supabase.auth.getSession().then(({ data }) => {
+    const rememberMe = getRememberMePreference();
+    resetSupabaseClient(rememberMe);
+
+    let isMounted = true;
+
+    const syncSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!isMounted) return;
       setSession(data.session);
       setLoading(false);
       if (data.session?.user) {
         checkAdminRole(data.session.user);
       }
-    });
+    };
 
-    // 2. Real-time auth state listener
+    syncSession();
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (!isMounted) return;
       setSession(s);
       setLoading(false);
 
@@ -86,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
+      isMounted = false;
       try {
         if (sub && (sub as any).subscription && typeof (sub as any).subscription.unsubscribe === 'function') {
           (sub as any).subscription.unsubscribe();
@@ -97,9 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setIsAdmin(false);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      clearSupabaseAuthStorage();
+      setSession(null);
+      setIsAdmin(false);
+    }
   };
 
   return (

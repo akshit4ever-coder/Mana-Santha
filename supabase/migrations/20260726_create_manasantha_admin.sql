@@ -10,7 +10,7 @@ BEGIN
   -- 1. Find existing user with synthetic email or admin email
   SELECT id INTO target_user_id 
   FROM auth.users 
-  WHERE email IN ('manasantha@username.manasantha.local', 'admin@manasantha.com');
+  WHERE email IN ('manasantha@username.manasantha.local', 'admin@local.test');
 
   -- 2. Create or Update user
   IF target_user_id IS NULL THEN

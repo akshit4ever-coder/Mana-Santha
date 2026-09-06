@@ -4,6 +4,7 @@ import type { Database } from './types';
 
 const MISSING_SUPABASE_MESSAGE =
   'Supabase is not connected yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Lovable Cloud or your local .env file.';
+const REMEMBER_ME_STORAGE_KEY = 'mana_santha_remember_me';
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
@@ -33,6 +34,34 @@ function getSupabaseConfig() {
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
 
   return { url, key };
+}
+
+export function getRememberMePreference(): boolean {
+  if (typeof window === 'undefined') return true;
+  const saved = window.localStorage.getItem(REMEMBER_ME_STORAGE_KEY);
+  return saved === null ? true : saved === 'true';
+}
+
+export function setRememberMePreference(rememberMe: boolean) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(REMEMBER_ME_STORAGE_KEY, String(rememberMe));
+}
+
+export function clearSupabaseAuthStorage() {
+  if (typeof window === 'undefined') return;
+
+  const storageTargets = [window.localStorage, window.sessionStorage];
+
+  for (const storage of storageTargets) {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => storage.removeItem(key));
+  }
 }
 
 function createFallbackError() {
@@ -84,6 +113,7 @@ function createFallbackClient() {
       return { data: { user: null, session: null }, error: createFallbackError() };
     },
     async signOut() {
+      clearSupabaseAuthStorage();
       return { error: null };
     },
   };
@@ -101,7 +131,7 @@ function createFallbackClient() {
   return { auth, storage, from };
 }
 
-function createSupabaseClient() {
+function createSupabaseClient(rememberMe = getRememberMePreference()) {
   const { url, key } = getSupabaseConfig();
 
   if (!url || !key) {
@@ -109,14 +139,14 @@ function createSupabaseClient() {
     return createFallbackClient() as any;
   }
 
-  console.log('🚀 Supabase Client Initialized with URL:', url);
+  console.log('🚀 Supabase Client Initialized with URL:', url, 'rememberMe=', rememberMe);
 
   return createClient<Database>(url, key, {
     global: {
       fetch: createSupabaseFetch(key),
     },
     auth: {
-      storage: typeof window !== 'undefined' ? localStorage : undefined,
+      storage: typeof window !== 'undefined' ? (rememberMe ? window.localStorage : window.sessionStorage) : undefined,
       persistSession: true,
       autoRefreshToken: true,
     },
@@ -124,6 +154,12 @@ function createSupabaseClient() {
 }
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
+
+export function resetSupabaseClient(rememberMe = getRememberMePreference()) {
+  setRememberMePreference(rememberMe);
+  _supabase = createSupabaseClient(rememberMe);
+  return _supabase;
+}
 
 export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
   get(_, prop, receiver) {

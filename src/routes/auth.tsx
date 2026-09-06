@@ -8,6 +8,7 @@ import { Label } from "@/components/UI/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/UI/tabs";
 import { useAuth } from "@/lib/auth";
 import { signInWithIdentifierAndPassword, registerNewUser } from "@/lib/phone-auth";
+import { getRememberMePreference, resetSupabaseClient, setRememberMePreference } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Leaf, Eye, EyeOff } from "lucide-react";
 
@@ -27,6 +28,7 @@ function AuthPage() {
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [rememberMe, setRememberMe] = useState<boolean>(() => getRememberMePreference());
   // login method fixed to password-only
 
   // Sign In states
@@ -73,6 +75,8 @@ function AuthPage() {
 
     setLoading(true);
     try {
+      setRememberMePreference(rememberMe);
+      resetSupabaseClient(rememberMe);
       await signInWithIdentifierAndPassword(loginIdentifier, loginPassword);
       toast.success("Welcome back! 🎉");
       navigate({ to: "/" });
@@ -196,6 +200,16 @@ function AuthPage() {
                 </div>
 
                 <div className="flex items-center justify-between mt-2">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 rounded border-input accent-primary"
+                    />
+                    Remember Me
+                  </label>
+
                   <Link to="/forgot-password" className="text-sm text-primary underline">
                     Forgot password?
                   </Link>

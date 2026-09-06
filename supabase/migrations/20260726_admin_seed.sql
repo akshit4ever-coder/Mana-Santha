@@ -10,7 +10,7 @@
 --   3. An admin role in user_roles
 --
 -- Admin Credentials:
---   Email:    admin@manasantha.com
+--   Email:    admin@local.test
 --   Password: Admin@12345
 -- ============================================================
 
@@ -22,7 +22,7 @@ BEGIN
   -- Check if admin already exists
   SELECT id INTO existing_id
   FROM auth.users
-  WHERE email = 'admin@manasantha.com';
+  WHERE email = 'admin@local.test';
 
   IF existing_id IS NOT NULL THEN
     RAISE NOTICE 'Admin user already exists with id: %', existing_id;
@@ -62,7 +62,7 @@ BEGIN
   ) VALUES (
     gen_random_uuid(),
     '00000000-0000-0000-0000-000000000000',
-    'admin@manasantha.com',
+    'admin@local.test',
     crypt('Admin@12345', gen_salt('bf')),
     NOW(),                           -- email already confirmed
     '{"provider": "email", "providers": ["email"]}',
@@ -95,7 +95,7 @@ BEGIN
   VALUES (admin_id, 'customer')
   ON CONFLICT (user_id, role) DO NOTHING;
 
-  RAISE NOTICE 'Admin setup complete! Email: admin@manasantha.com | Password: Admin@12345';
+  RAISE NOTICE 'Admin setup complete! Email: admin@local.test | Password: Admin@12345';
 END;
 $$;
 
@@ -111,5 +111,5 @@ SELECT
 FROM auth.users u
 LEFT JOIN public.profiles p ON p.id = u.id
 LEFT JOIN public.user_roles r ON r.user_id = u.id
-WHERE u.email = 'admin@manasantha.com'
+WHERE u.email = 'admin@local.test'
 GROUP BY u.id, u.email, u.email_confirmed_at, p.full_name;

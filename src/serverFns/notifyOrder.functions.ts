@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { OrderNotificationPayload } from "../../api/lib/sendOrderEmail";
+import type {
+  OrderCancellationNotificationPayload,
+  OrderNotificationPayload,
+} from "../../api/lib/sendOrderEmail";
 
 export const notifyOrder = createServerFn({
   method: "POST",
@@ -18,6 +21,33 @@ export const notifyOrder = createServerFn({
       await sendOrderNotificationEmail(data);
 
       console.log("✅ email sent");
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error(error);
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+export const notifyOrderCancellation = createServerFn({
+  method: "POST",
+})
+  .validator((data: OrderCancellationNotificationPayload) => data)
+  .handler(async ({ data }) => {
+    console.log("🔔 serverFn notifyOrderCancellation called");
+
+    try {
+      const { sendOrderCancellationEmail } = await import(
+        "../../api/lib/sendOrderEmail"
+      );
+
+      await sendOrderCancellationEmail(data);
 
       return {
         success: true,

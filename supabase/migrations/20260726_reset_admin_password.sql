@@ -8,7 +8,7 @@ DECLARE
   target_user_id UUID;
 BEGIN
   -- 1. Find user
-  SELECT id INTO target_user_id FROM auth.users WHERE email = 'admin@manasantha.com';
+  SELECT id INTO target_user_id FROM auth.users WHERE email = 'admin@local.test';
 
   -- 2. Create user if doesn't exist
   IF target_user_id IS NULL THEN
@@ -18,7 +18,7 @@ BEGIN
       created_at, updated_at, role, aud
     ) VALUES (
       gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 
-      'admin@manasantha.com', 
+      'admin@local.test',
       crypt('Admin@12345', gen_salt('bf')), 
       NOW(), 
       '{"provider": "email", "providers": ["email"]}', 
@@ -47,6 +47,6 @@ BEGIN
   VALUES (target_user_id, 'customer')
   ON CONFLICT (user_id, role) DO NOTHING;
 
-  RAISE NOTICE 'Password updated for admin@manasantha.com to Admin@12345';
+  RAISE NOTICE 'Password updated for admin@local.test to Admin@12345';
 END;
 $$;

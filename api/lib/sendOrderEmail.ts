@@ -18,6 +18,17 @@ export type OrderNotificationPayload = {
   orderTime: string;
 };
 
+export type OrderCancellationNotificationPayload = {
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  totalAmount: number | string;
+  cancellationReason: string;
+  cancellationTime: string;
+  adminEmail?: string;
+};
+
 function formatMoney(amount: number | string) {
   const numeric = Number(amount ?? 0);
   if (Number.isNaN(numeric)) return String(amount ?? '0');
@@ -33,7 +44,7 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
   console.log({
     SMTP_USER: !!process.env.SMTP_USER,
     SMTP_PASS: !!process.env.SMTP_PASS,
-    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    ADMIN_EMAIL: !!process.env.ADMIN_EMAIL,
     EMAIL_FROM: process.env.EMAIL_FROM,
   });
   const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
@@ -41,9 +52,14 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
   const adminEmail = process.env.ADMIN_EMAIL;
   const fromEmail = process.env.EMAIL_FROM || process.env.GMAIL_USER || smtpUser;
 
-  if (!smtpUser || !smtpPass || !adminEmail) {
+  if (!adminEmail) {
+    console.warn("ADMIN_EMAIL is not configured");
+    return;
+  }
+
+  if (!smtpUser || !smtpPass) {
     throw new Error(
-      'Missing SMTP configuration. Please set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD and ADMIN_EMAIL in the deployment environment.',
+      'Missing SMTP configuration. Please set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD in the deployment environment.',
     );
   }
 
@@ -191,5 +207,78 @@ ${payload.orderItems
     }
     console.error('SMTP send failed:', JSON.stringify(errObj, null, 2));
     throw error;
+  }
+}
+
+export async function sendOrderCancellationEmail(payload: OrderCancellationNotificationPayload) {
+  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const fromEmail = process.env.EMAIL_FROM || process.env.GMAIL_USER || smtpUser;
+
+  if (!smtpUser || !smtpPass) {
+    throw new Error(
+      'Missing SMTP configuration. Please set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD in the deployment environment.',
+    );
+  }
+
+  if (!adminEmail) {
+    console.warn("ADMIN_EMAIL is not configured");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: (process.env.SMTP_SECURE ?? 'true') === 'true',
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
+
+  await transporter.verify();
+
+  const adminHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb;">
+      <h2 style="margin: 0 0 16px; color: #111827;">Order Cancellation Request</h2>
+      <p style="margin: 0 0 16px; color: #374151;">The following order was cancelled by the customer.</p>
+      <table style="width:100%; border-collapse: collapse; color:#111827;">
+        <tr><td style="padding: 8px 0; font-weight: 700; width: 220px;">Order Number</td><td>${payload.orderNumber}</td></tr>
+        <tr><td style="padding: 8px 0; font-weight: 700;">Customer Name</td><td>${payload.customerName}</td></tr>
+        <tr><td style="padding: 8px 0; font-weight: 700;">Customer Phone</td><td>${payload.customerPhone}</td></tr>
+        <tr><td style="padding: 8px 0; font-weight: 700;">Total Amount</td><td>${formatMoney(payload.totalAmount)}</td></tr>
+        <tr><td style="padding: 8px 0; font-weight: 700;">Cancellation Reason</td><td>${payload.cancellationReason}</td></tr>
+        <tr><td style="padding: 8px 0; font-weight: 700;">Cancellation Time</td><td>${new Date(payload.cancellationTime).toLocaleString('en-IN')}</td></tr>
+      </table>
+    </div>
+  `;
+
+  const customerHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb;">
+      <h2 style="margin: 0 0 16px; color: #166534;">Your order cancellation was successful</h2>
+      <p style="margin: 0 0 16px; color: #374151;">Order #${payload.orderNumber} has been cancelled successfully.</p>
+      <p style="margin: 0 0 8px; color: #374151;">Reason: ${payload.cancellationReason}</p>
+      <p style="margin: 0; color: #374151;">Cancelled on: ${new Date(payload.cancellationTime).toLocaleString('en-IN')}</p>
+    </div>
+  `;
+
+  if (adminEmail) {
+    await transporter.sendMail({
+      from: `Mana Santha <${fromEmail}>`,
+      to: adminEmail,
+      subject: `Order Cancelled - ${payload.orderNumber}`,
+      html: adminHtml,
+      text: `Order cancelled by customer\nOrder Number: ${payload.orderNumber}\nCustomer Name: ${payload.customerName}\nCustomer Phone: ${payload.customerPhone}\nTotal Amount: ${formatMoney(payload.totalAmount)}\nCancellation Reason: ${payload.cancellationReason}\nCancellation Time: ${new Date(payload.cancellationTime).toLocaleString('en-IN')}`,
+    });
+  }
+
+  if (payload.customerEmail) {
+    await transporter.sendMail({
+      from: `Mana Santha <${fromEmail}>`,
+      to: payload.customerEmail,
+      subject: `Cancellation Confirmed - Order ${payload.orderNumber}`,
+      html: customerHtml,
+      text: `Your order ${payload.orderNumber} has been cancelled successfully.\nReason: ${payload.cancellationReason}\nCancelled on: ${new Date(payload.cancellationTime).toLocaleString('en-IN')}`,
+    });
   }
 }

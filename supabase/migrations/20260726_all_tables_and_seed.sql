@@ -306,7 +306,7 @@ DECLARE
   admin_id UUID;
   existing_id UUID;
 BEGIN
-  SELECT id INTO existing_id FROM auth.users WHERE email = 'admin@manasantha.com';
+  SELECT id INTO existing_id FROM auth.users WHERE email = 'admin@local.test';
 
   IF existing_id IS NOT NULL THEN
     INSERT INTO public.user_roles (user_id, role) VALUES (existing_id, 'admin') ON CONFLICT DO NOTHING;
@@ -317,7 +317,7 @@ BEGIN
   INSERT INTO auth.users (
     id, instance_id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, role, aud
   ) VALUES (
-    gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'admin@manasantha.com', crypt('Admin@12345', gen_salt('bf')), NOW(), '{"provider": "email", "providers": ["email"]}', '{"full_name": "Super Admin"}', FALSE, NOW(), NOW(), 'authenticated', 'authenticated'
+    gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'admin@local.test', crypt('Admin@12345', gen_salt('bf')), NOW(), '{"provider": "email", "providers": ["email"]}', '{"full_name": "Super Admin"}', FALSE, NOW(), NOW(), 'authenticated', 'authenticated'
   ) RETURNING id INTO admin_id;
 
   INSERT INTO public.profiles (id, full_name, phone) VALUES (admin_id, 'Super Admin', '') ON CONFLICT DO NOTHING;

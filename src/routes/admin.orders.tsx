@@ -9,6 +9,15 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/admin/orders")({ component: AdminOrders });
 
 const STATUSES = ["pending","confirmed","packed","out_for_delivery","delivered","cancelled","refunded"];
+const statusColor: Record<string, string> = {
+  pending: "bg-yellow-500/15 text-yellow-700",
+  confirmed: "bg-blue-500/15 text-blue-700",
+  packed: "bg-purple-500/15 text-purple-700",
+  out_for_delivery: "bg-orange-500/15 text-orange-700",
+  delivered: "bg-green-500/15 text-green-700",
+  cancelled: "bg-red-500/15 text-red-700",
+  refunded: "bg-gray-500/15 text-gray-700",
+};
 
 const formatDeliveryAddress = (snapshot: any) => {
   if (!snapshot) return "Address not available";
@@ -21,12 +30,18 @@ function AdminOrders() {
   const qc = useQueryClient();
   const { data: orders } = useQuery({
     queryKey: ["admin-orders"],
-    queryFn: async () => (
-      await supabase
-        .from("orders")
-        .select("*, order_items(*), profiles: user_id(full_name, phone)")
-        .order("created_at", { ascending: false })
-    ).data,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      console.log('Orders:', data);
+      console.log('Orders error:', error);
+
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const upd = useMutation({
@@ -56,9 +71,10 @@ function AdminOrders() {
           </TableHeader>
           <TableBody>
             {orders?.map((o: any) => {
-              const customerName = o.profiles?.full_name || o.address_snapshot?.full_name || "Unknown customer";
-              const customerPhone = o.profiles?.phone || o.address_snapshot?.phone || "No phone";
+              const customerName = o.address_snapshot?.full_name || "Unknown customer";
+              const customerPhone = o.address_snapshot?.phone || "No phone";
               const deliveryAddress = formatDeliveryAddress(o.address_snapshot);
+              const isCancelled = String(o.status || "").toLowerCase() === "cancelled";
 
               return (
                 <TableRow key={o.id}>
@@ -69,19 +85,35 @@ function AdminOrders() {
                   <TableCell className="text-sm">
                     <div className="font-medium">{customerName}</div>
                     <div className="text-xs text-muted-foreground">{customerPhone}</div>
+                    {isCancelled && (
+                      <div className="mt-1 text-[10px] uppercase tracking-wide text-red-600">Cancelled by Customer</div>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     <div className="max-w-[220px]">{deliveryAddress}</div>
                     <div className="text-xs text-muted-foreground">{o.address_snapshot?.city || "City not available"}{o.address_snapshot?.state ? `, ${o.address_snapshot.state}` : ""}</div>
+                    {isCancelled && o.cancellation_reason && (
+                      <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">Reason: {o.cancellation_reason}</div>
+                    )}
                   </TableCell>
-                  <TableCell>{o.order_items?.length}</TableCell>
+                  <TableCell>{o.order_items?.length ?? 0}</TableCell>
                   <TableCell className="font-semibold">{formatINR(o.total)}</TableCell>
                   <TableCell className="text-sm uppercase">{o.payment_method}</TableCell>
                   <TableCell>
-                    <Select value={o.status} onValueChange={(v) => upd.mutate({ id: o.id, status: v })}>
-                      <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                      <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Select value={o.status} onValueChange={(v) => upd.mutate({ id: o.id, status: v })}>
+                        <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                        <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+                      </Select>
+
+                      {isCancelled && (
+                        <div className="rounded bg-red-500/10 px-2 py-1 text-center text-xs font-medium text-red-700">Cancelled</div>
+                      )}
+
+                      {isCancelled && o.updated_at && (
+                        <div className="text-[10px] text-muted-foreground">Cancelled at: {new Date(o.updated_at).toLocaleString("en-IN")}</div>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );

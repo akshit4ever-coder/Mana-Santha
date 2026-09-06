@@ -88,7 +88,7 @@ export async function signInWithIdentifierAndPassword(identifier: string, passwo
     throw new Error("Password must be at least 6 characters");
   }
 
-  // 1. Direct Email (e.g., admin@manasantha.com)
+  // 1. Direct Email (for configured admin or account email)
   if (cleanId.includes("@")) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanId,
