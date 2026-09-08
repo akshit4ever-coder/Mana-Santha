@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
 import { Loader2, TrendingUp, ShoppingBag, Users, Package } from "lucide-react";
@@ -15,13 +16,19 @@ import {
   CartesianGrid,
 } from "recharts";
 
+const adminReportsSearchSchema = z.object({
+  filter: z.enum(["all", "today"]).optional().default("all"),
+});
+
 export const Route = createFileRoute("/admin/reports")({
+  validateSearch: adminReportsSearchSchema,
   component: AdminReports,
 });
 
 function AdminReports() {
+  const { filter } = Route.useSearch();
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-reports"],
+    queryKey: ["admin-reports", filter],
     queryFn: async () => {
       const [orders, products, profiles] = await Promise.all([
         supabase
@@ -35,6 +42,9 @@ function AdminReports() {
       const allOrders = orders.data ?? [];
       const allProducts = products.data ?? [];
       const allProfiles = profiles.data ?? [];
+      const filteredOrders = filter === "today"
+        ? allOrders.filter((o) => new Date(o.created_at).toDateString() === new Date().toDateString())
+        : allOrders;
 
       // Revenue by day (last 30 days)
       const last30 = new Date();
@@ -57,7 +67,7 @@ function AdminReports() {
 
       // Order status breakdown
       const statusMap: Record<string, number> = {};
-      allOrders.forEach((o) => {
+      filteredOrders.forEach((o) => {
         statusMap[o.status] = (statusMap[o.status] || 0) + 1;
       });
       const statusData = Object.entries(statusMap).map(([status, count]) => ({
@@ -67,16 +77,16 @@ function AdminReports() {
 
       // Payment method breakdown
       const payMap: Record<string, number> = {};
-      allOrders.forEach((o) => {
+      filteredOrders.forEach((o) => {
         payMap[o.payment_method] = (payMap[o.payment_method] || 0) + 1;
       });
 
-      const totalRevenue = allOrders.reduce((s, o) => s + Number(o.total), 0);
+      const totalRevenue = filteredOrders.reduce((s, o) => s + Number(o.total), 0);
       const today = new Date().toDateString();
-      const todayRevenue = allOrders
+      const todayRevenue = filteredOrders
         .filter((o) => new Date(o.created_at).toDateString() === today)
         .reduce((s, o) => s + Number(o.total), 0);
-      const pendingOrders = allOrders.filter(
+      const pendingOrders = filteredOrders.filter(
         (o) => o.status === "pending"
       ).length;
       const outOfStock = allProducts.filter((p) => p.stock <= 0).length;
@@ -84,7 +94,7 @@ function AdminReports() {
       return {
         totalRevenue,
         todayRevenue,
-        totalOrders: allOrders.length,
+        totalOrders: filteredOrders.length,
         totalCustomers: allProfiles.length,
         pendingOrders,
         outOfStock,
@@ -102,6 +112,8 @@ function AdminReports() {
       </div>
     );
   }
+
+  const pageTitle = filter === "today" ? "Today's Reports" : "Reports";
 
   const summaryCards = [
     {
@@ -145,9 +157,9 @@ function AdminReports() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold md:text-3xl">Reports</h1>
+        <h1 className="text-2xl font-bold md:text-3xl">{pageTitle}</h1>
         <p className="text-sm text-muted-foreground">
-          Sales and performance overview
+          {filter === "today" ? "Today's sales and performance overview" : "Sales and performance overview"}
         </p>
       </div>
 

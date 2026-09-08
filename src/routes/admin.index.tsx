@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
@@ -32,12 +32,12 @@ function Dashboard() {
   });
 
   const stats = [
-    { label: "Today's Orders", value: data?.todayOrders ?? 0, icon: ShoppingBag },
-    { label: "Today's Revenue", value: formatINR(data?.todayRev ?? 0), icon: TrendingUp },
-    { label: "Total Orders", value: data?.totalOrders ?? 0, icon: Users },
-    { label: "Total Revenue", value: formatINR(data?.totalRevenue ?? 0), icon: TrendingUp },
-    { label: "Pending Orders", value: data?.pending ?? 0, icon: ShoppingBag },
-    { label: "Out of Stock", value: data?.outOfStock ?? 0, icon: Package },
+    { label: "Today's Orders", value: data?.todayOrders ?? 0, icon: ShoppingBag, to: "/admin/orders?filter=today" },
+    { label: "Today's Revenue", value: formatINR(data?.todayRev ?? 0), icon: TrendingUp, to: "/admin/reports?filter=today" },
+    { label: "Total Orders", value: data?.totalOrders ?? 0, icon: Users, to: "/admin/orders" },
+    { label: "Total Revenue", value: formatINR(data?.totalRevenue ?? 0), icon: TrendingUp, to: "/admin/reports" },
+    { label: "Pending Orders", value: data?.pending ?? 0, icon: ShoppingBag, to: "/admin/orders?filter=pending" },
+    { label: "Out of Stock", value: data?.outOfStock ?? 0, icon: Package, to: "/admin/inventory" },
   ];
 
   return (
@@ -45,7 +45,11 @@ function Dashboard() {
       <h1 className="mb-6 text-2xl font-bold md:text-3xl">Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-xl border bg-card p-5 shadow-card">
+          <Link
+            key={s.label}
+            to={s.to}
+            className="block rounded-xl border bg-card p-5 shadow-card transition-all duration-200 hover:border-primary/40 hover:bg-accent/30 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{s.label}</div>
@@ -53,7 +57,7 @@ function Dashboard() {
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><s.icon className="h-5 w-5" /></div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/Layout/Header";
 import { Footer } from "@/components/Layout/Footer";
@@ -30,14 +30,42 @@ const statusColor: Record<string, string> = {
   refunded: "bg-gray-500/15 text-gray-700",
 };
 
+function formatDisplayDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 function OrdersPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data: orders } = useOrders(user?.id);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
+  const [selectedBill, setSelectedBill] = useState<any | null>(null);
   const [cancelReason, setCancelReason] = useState<string>("");
   const [cancelNote, setCancelNote] = useState<string>("");
   const [isCancelling, setIsCancelling] = useState(false);
+
+  const billOrder = useMemo(() => {
+    if (!selectedBill) return null;
+
+    const lineItems = Array.isArray(selectedBill.order_items) ? selectedBill.order_items : [];
+    const subtotal = lineItems.reduce((sum: number, item: any) => sum + Number(item.subtotal || item.price * item.quantity || 0), 0);
+    const deliveryFee = Number(selectedBill.delivery_fee || 0);
+    const discount = Number(selectedBill.discount || 0);
+    const grandTotal = Number(selectedBill.total || subtotal + deliveryFee - discount);
+
+    return {
+      ...selectedBill,
+      lineItems,
+      subtotal,
+      deliveryFee,
+      discount,
+      grandTotal,
+    };
+  }, [selectedBill]);
 
   const handleCancelOrder = async () => {
     if (!user || !cancelTarget) return;
@@ -183,18 +211,23 @@ function OrdersPage() {
                       <div className="text-xl font-bold">{formatINR(o.total)}</div>
                       <div className="text-xs text-muted-foreground">{o.payment_method === "cod" ? "Cash on Delivery" : "Paid online"}</div>
 
-                      {isCancellable && !isCancelled && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="mt-3"
-                          onClick={() => setCancelTarget(o)}
-                          disabled={isCancelling}
-                        >
-                          {isCancelling && cancelTarget?.id === o.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Cancel Order
+                      <div className="mt-3 flex flex-col gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setSelectedBill(o)}>
+                          View Bill
                         </Button>
-                      )}
+
+                        {isCancellable && !isCancelled && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setCancelTarget(o)}
+                            disabled={isCancelling}
+                          >
+                            {isCancelling && cancelTarget?.id === o.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Cancel Order
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -203,6 +236,136 @@ function OrdersPage() {
           </div>
         )}
       </main>
+
+      <Dialog open={!!selectedBill} onOpenChange={(open) => !open && setSelectedBill(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Order Bill</DialogTitle>
+            <DialogDescription>
+              Proof of purchase for order #{billOrder?.order_number || selectedBill?.order_number || "—"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {billOrder && (
+            <div className="space-y-4">
+              <style>{`
+                @media print {
+                  @page {
+                    size: A4 portrait;
+                    margin: 12mm;
+                  }
+
+                  body { background: white; }
+                  .no-print { display: none !important; }
+                  .bill-print {
+                    box-shadow: none !important;
+                    border: 1px solid #e5e7eb !important;
+                    width: 100%;
+                    max-width: 100%;
+                    margin: 0 auto;
+                    page-break-inside: avoid;
+                  }
+                }
+              `}</style>
+
+              <div className="bill-print rounded-xl border bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex items-start justify-between gap-3 border-b pb-3">
+                  <div>
+                    <div className="text-xl font-bold text-emerald-700 sm:text-2xl">Mana Santha</div>
+                    <div className="text-[10px] text-muted-foreground sm:text-xs">Fresh groceries & essentials</div>
+                  </div>
+                  <div className="text-right text-[11px] sm:text-sm">
+                    <div className="font-semibold">Bill No: {billOrder.order_number}</div>
+                    <div className="text-muted-foreground">{formatDisplayDate(billOrder.created_at)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">Customer</div>
+                    <div className="mt-1 text-sm font-medium">{billOrder.address_snapshot?.full_name || user?.user_metadata?.full_name || user?.email || "Customer"}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">Delivery address</div>
+                    <div className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                      {[
+                        billOrder.address_snapshot?.line1,
+                        billOrder.address_snapshot?.line2,
+                        billOrder.address_snapshot?.city,
+                        billOrder.address_snapshot?.state,
+                        billOrder.address_snapshot?.pincode,
+                      ].filter(Boolean).join(", ") || "Address not available"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-lg border bg-slate-50 p-2 text-[11px] sm:p-3 sm:text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="font-medium capitalize">{String(billOrder.status || "pending").replace(/_/g, " ")}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Payment</span>
+                    <span className="font-medium">{billOrder.payment_method === "cod" ? "Cash on Delivery" : "Paid online"}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-hidden rounded-lg border">
+                  <table className="w-full text-left text-[11px] sm:text-sm">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="px-2 py-2 font-medium sm:px-3">Item</th>
+                        <th className="px-2 py-2 text-center font-medium sm:px-3">Qty</th>
+                        <th className="px-2 py-2 text-right font-medium sm:px-3">Price</th>
+                        <th className="px-2 py-2 text-right font-medium sm:px-3">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billOrder.lineItems.map((item: any) => (
+                        <tr key={item.id || item.name} className="border-t">
+                          <td className="px-2 py-2 sm:px-3">{item.name}</td>
+                          <td className="px-2 py-2 text-center sm:px-3">{item.quantity}</td>
+                          <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.price)}</td>
+                          <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.subtotal || Number(item.price || 0) * Number(item.quantity || 0))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 ml-auto max-w-[220px] space-y-2 text-[11px] sm:max-w-xs sm:text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{formatINR(billOrder.subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Delivery</span>
+                    <span>{formatINR(billOrder.deliveryFee)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Discount</span>
+                    <span>-{formatINR(billOrder.discount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t pt-2 text-sm font-bold sm:text-base">
+                    <span>Total</span>
+                    <span>{formatINR(billOrder.grandTotal)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t pt-3 text-[10px] text-muted-foreground sm:text-xs">
+                  Thank you for shopping with Mana Santha. This bill is your proof of purchase.
+                </div>
+              </div>
+
+              <div className="no-print flex justify-end gap-2">
+                <Button variant="outline" onClick={() => window.print()}>Print Bill</Button>
+                <Button onClick={() => setSelectedBill(null)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <DialogContent className="sm:max-w-md">
