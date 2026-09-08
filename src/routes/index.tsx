@@ -10,9 +10,9 @@ import heroImg from "@/assets/hero-groceries.jpg";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Mana Santha — Fresh Groceries Delivered to Your Doorstep" },
+      { title: "Mana Santa — Fresh Groceries Delivered to Your Doorstep" },
       { name: "description", content: "Order fresh fruits, vegetables, dairy, atta, dal, oil, snacks and everyday kirana essentials online with fast home delivery." },
-      { property: "og:title", content: "Mana Santha — Fresh Groceries Delivered" },
+      { property: "og:title", content: "Mana Santa — Fresh Groceries Delivered" },
       { property: "og:description", content: "Shop kirana, produce, dairy and household essentials with same-day delivery." },
     ],
   }),

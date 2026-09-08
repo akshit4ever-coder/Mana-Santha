@@ -46,7 +46,7 @@
 :root {
   --radius: 0.75rem;
 
-  /* Mana Santha palette — fresh, trustworthy, appetising */
+  /* Mana Santa palette — fresh, trustworthy, appetising */
   --background: oklch(0.995 0.005 90);
   --foreground: oklch(0.22 0.03 150);
 

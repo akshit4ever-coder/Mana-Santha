@@ -11,8 +11,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/forgot-password")({
   head: () => ({
     meta: [
-      { title: "Forgot Password — Mana Santha" },
-      { name: "description", content: "Reset your Mana Santha password securely." },
+      { title: "Forgot Password — Mana Santa" },
+      { name: "description", content: "Reset your Mana Santa password securely." },
     ],
   }),
   component: ForgotPasswordPage,

@@ -7,7 +7,7 @@ import { useWishlist } from "@/lib/queries";
 import { Heart } from "lucide-react";
 
 export const Route = createFileRoute("/wishlist")({
-  head: () => ({ meta: [{ title: "Wishlist — Mana Santha" }, { name: "description", content: "Your saved products." }] }),
+  head: () => ({ meta: [{ title: "Wishlist — Mana Santa" }, { name: "description", content: "Your saved products." }] }),
   component: WishlistPage,
 });
 

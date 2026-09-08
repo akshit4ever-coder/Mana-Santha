@@ -28,10 +28,10 @@ export function Header() {
       <div className="container mx-auto flex h-24 md:h-20 items-center gap-4 px-4">
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
-            <img src={LogoIcon} alt="Mana Santha logo" className="h-14 w-14 md:h-20 md:w-20 object-contain" />
+            <img src={LogoIcon} alt="Mana Santa logo" className="h-14 w-14 md:h-20 md:w-20 object-contain" />
           </div>
           <div className="block">
-            <img src={TitleImg} alt="Mana Santha" className="h-12 md:h-16 object-contain" />
+            <img src={TitleImg} alt="Mana Santa" className="h-12 md:h-16 object-contain" />
           </div>
         </Link>
 

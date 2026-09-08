@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Razorpay Payment Integration
- * Handles online payment processing for Mana Santha
+ * Handles online payment processing for Mana Santa
  */
 
 // Initialize Razorpay script
@@ -80,7 +80,7 @@ export async function processRazorpayPayment(
         key,
         amount: amount * 100, // Convert to paise
         currency: "INR",
-        name: "Mana Santha",
+        name: "Mana Santa",
         description,
         order_id: orderId,
         handler(response: RazorpayPaymentResponse) {

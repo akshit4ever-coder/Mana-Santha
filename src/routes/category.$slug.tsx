@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 export const Route = createFileRoute("/category/$slug")({
   head: ({ params }) => ({
     meta: [
-      { title: `Shop ${params.slug.replace(/-/g, " ")} — Mana Santha` },
+      { title: `Shop ${params.slug.replace(/-/g, " ")} — Mana Santa` },
       { name: "description", content: `Browse and buy ${params.slug.replace(/-/g, " ")} online. Fresh, best prices, fast delivery.` },
     ],
   }),

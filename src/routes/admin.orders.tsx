@@ -371,7 +371,7 @@ function AdminOrders() {
               <div className="bill-print rounded-xl border bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex items-start justify-between gap-3 border-b pb-3">
                   <div>
-                    <div className="text-xl font-bold text-emerald-700 sm:text-2xl">Mana Santha</div>
+                    <div className="text-xl font-bold text-emerald-700 sm:text-2xl">Mana Santa</div>
                     <div className="text-[10px] text-muted-foreground sm:text-xs">Fresh groceries & essentials</div>
                   </div>
                   <div className="text-right text-[11px] sm:text-sm">

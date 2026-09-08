@@ -33,7 +33,7 @@ import {
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin — Mana Santha" },
+      { title: "Admin — Mana Santa" },
       { name: "robots", content: "noindex" },
     ],
   }),

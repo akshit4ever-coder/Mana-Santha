@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
-  head: () => ({ meta: [{ title: "My Orders — Mana Santha" }, { name: "description", content: "Track your Mana Santha orders." }] }),
+  head: () => ({ meta: [{ title: "My Orders — Mana Santa" }, { name: "description", content: "Track your Mana Santa orders." }] }),
   component: OrdersPage,
 });
 
@@ -371,7 +371,7 @@ function OrdersPage() {
               <div className="bill-print rounded-xl border bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex items-start justify-between gap-3 border-b pb-3">
                   <div>
-                    <div className="text-xl font-bold text-emerald-700 sm:text-2xl">Mana Santha</div>
+                    <div className="text-xl font-bold text-emerald-700 sm:text-2xl">Mana Santa</div>
                     <div className="text-[10px] text-muted-foreground sm:text-xs">Fresh groceries & essentials</div>
                   </div>
                   <div className="text-right text-[11px] sm:text-sm">
@@ -464,7 +464,7 @@ function OrdersPage() {
                 </div>
 
                 <div className="mt-4 border-t pt-3 text-[10px] text-muted-foreground sm:text-xs">
-                  Thank you for shopping with Mana Santha. This bill is your proof of purchase.
+                  Thank you for shopping with Mana Santa. This bill is your proof of purchase.
                 </div>
               </div>
 

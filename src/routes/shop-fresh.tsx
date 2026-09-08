@@ -4,7 +4,7 @@ import { Footer } from "@/components/Layout/Footer";
 import { useCategories } from "@/lib/queries";
 
 export const Route = createFileRoute("/shop-fresh")({
-  head: () => ({ meta: [{ title: "Shop Fresh — Mana Santha" }, { name: "description", content: "Fresh fruits, vegetables, dairy, eggs & meat." }] }),
+  head: () => ({ meta: [{ title: "Shop Fresh — Mana Santa" }, { name: "description", content: "Fresh fruits, vegetables, dairy, eggs & meat." }] }),
   component: ShopFreshPage,
 });
 

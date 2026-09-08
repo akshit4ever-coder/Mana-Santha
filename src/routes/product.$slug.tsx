@@ -14,7 +14,7 @@ import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 export const Route = createFileRoute("/product/$slug")({
   head: ({ params }) => ({
     meta: [
-      { title: `${params.slug.replace(/-/g, " ")} — Mana Santha` },
+      { title: `${params.slug.replace(/-/g, " ")} — Mana Santa` },
       { name: "description", content: `Buy ${params.slug.replace(/-/g, " ")} online at best prices.` },
     ],
   }),

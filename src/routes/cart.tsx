@@ -9,7 +9,7 @@ import { formatINR } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 
 export const Route = createFileRoute("/cart")({
-  head: () => ({ meta: [{ title: "Your Cart — Mana Santha" }, { name: "description", content: "Review your cart and proceed to checkout." }] }),
+  head: () => ({ meta: [{ title: "Your Cart — Mana Santa" }, { name: "description", content: "Review your cart and proceed to checkout." }] }),
   component: CartPage,
 });
 

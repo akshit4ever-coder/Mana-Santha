@@ -4,7 +4,7 @@ import { Footer } from "@/components/Layout/Footer";
 import { useCategories } from "@/lib/queries";
 
 export const Route = createFileRoute("/kirana-essentials")({
-  head: () => ({ meta: [{ title: "Kirana Essentials — Mana Santha" }, { name: "description", content: "Kirana essentials and household items." }] }),
+  head: () => ({ meta: [{ title: "Kirana Essentials — Mana Santa" }, { name: "description", content: "Kirana essentials and household items." }] }),
   component: KiranaPage,
 });
 

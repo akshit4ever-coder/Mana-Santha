@@ -147,7 +147,7 @@ function AdminSettings() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Store Name</Label>
-              <Input defaultValue="Mana Santha" disabled className="bg-muted" />
+              <Input defaultValue="Mana Santa" disabled className="bg-muted" />
             </div>
             <div>
               <Label>Support Phone</Label>

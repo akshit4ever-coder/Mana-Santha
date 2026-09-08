@@ -15,7 +15,7 @@ import { Loader2, MapPin, Wallet } from "lucide-react";
 import { STORE_LAT, STORE_LNG, STORE_LOCATION, DELIVERY_RADIUS_KM } from "@/lib/config";
 
 export const Route = createFileRoute("/checkout")({
-  head: () => ({ meta: [{ title: "Checkout — Mana Santha" }, { name: "description", content: "Complete your order with cash on delivery." }] }),
+  head: () => ({ meta: [{ title: "Checkout — Mana Santa" }, { name: "description", content: "Complete your order with cash on delivery." }] }),
   component: Checkout,
 });
 
