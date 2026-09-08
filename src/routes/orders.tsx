@@ -67,6 +67,76 @@ function OrdersPage() {
     };
   }, [selectedBill]);
 
+  const handlePrintBill = () => {
+    const invoiceNode = document.querySelector(".bill-print");
+    if (!invoiceNode) {
+      window.print();
+      return;
+    }
+
+    const printRoot = document.createElement("div");
+    printRoot.id = "mana-santha-bill-print-root";
+    printRoot.innerHTML = invoiceNode.outerHTML;
+
+    const existingRoot = document.getElementById("mana-santha-bill-print-root");
+    if (existingRoot) existingRoot.remove();
+
+    document.body.appendChild(printRoot);
+
+    const removePrintRoot = () => {
+      const root = document.getElementById("mana-santha-bill-print-root");
+      if (root) root.remove();
+      document.body.style.padding = "";
+    };
+
+    document.body.style.padding = "0";
+
+    const style = document.createElement("style");
+    style.textContent = `
+      @media print {
+        @page { size: A4 portrait; margin: 10mm 8mm; }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        body > *:not(#mana-santha-bill-print-root) {
+          display: none !important;
+        }
+        #mana-santha-bill-print-root {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+          box-shadow: none !important;
+          overflow: visible !important;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        #mana-santha-bill-print-root .bill-print {
+          width: 100% !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          border: 1px solid #e5e7eb !important;
+          box-shadow: none !important;
+          overflow: visible !important;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .no-print { display: none !important; }
+      }
+    `;
+
+    document.head.appendChild(style);
+
+    window.addEventListener("afterprint", removePrintRoot, { once: true });
+    window.setTimeout(() => window.print(), 50);
+  };
+
   const handleCancelOrder = async () => {
     if (!user || !cancelTarget) return;
 
@@ -252,18 +322,48 @@ function OrdersPage() {
                 @media print {
                   @page {
                     size: A4 portrait;
-                    margin: 12mm;
+                    margin: 10mm 8mm;
                   }
 
-                  body { background: white; }
-                  .no-print { display: none !important; }
+                  html, body {
+                    height: auto !important;
+                    overflow: visible !important;
+                    background: #fff !important;
+                  }
+
+                  body * {
+                    visibility: hidden;
+                  }
+
+                  .bill-print,
+                  .bill-print * {
+                    visibility: visible;
+                  }
+
                   .bill-print {
-                    box-shadow: none !important;
+                    position: static !important;
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    min-height: auto !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
                     border: 1px solid #e5e7eb !important;
-                    width: 100%;
-                    max-width: 100%;
-                    margin: 0 auto;
+                    box-shadow: none !important;
+                    overflow: visible !important;
+                    break-inside: avoid;
                     page-break-inside: avoid;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+
+                  .no-print,
+                  [data-radix-portal],
+                  .dialog-overlay,
+                  [role="dialog"] > *:not(.bill-print) {
+                    display: none !important;
+                    visibility: hidden !important;
                   }
                 }
               `}</style>
@@ -310,6 +410,16 @@ function OrdersPage() {
                     <span className="font-medium">{billOrder.payment_method === "cod" ? "Cash on Delivery" : "Paid online"}</span>
                   </div>
                 </div>
+
+                {billOrder.status === "cancelled" && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-[11px] text-red-700 sm:text-sm">
+                    <div className="font-semibold">Cancellation</div>
+                    <div className="mt-1">{billOrder.cancellation_reason || "Order cancelled by customer."}</div>
+                    {billOrder.updated_at && (
+                      <div className="mt-1 text-[10px]">Cancelled on: {formatDisplayDate(billOrder.updated_at)}</div>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 overflow-hidden rounded-lg border">
                   <table className="w-full text-left text-[11px] sm:text-sm">
@@ -359,7 +469,7 @@ function OrdersPage() {
               </div>
 
               <div className="no-print flex justify-end gap-2">
-                <Button variant="outline" onClick={() => window.print()}>Print Bill</Button>
+                <Button variant="outline" onClick={handlePrintBill}>Print Bill</Button>
                 <Button onClick={() => setSelectedBill(null)}>Close</Button>
               </div>
             </div>
