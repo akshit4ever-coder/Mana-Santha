@@ -253,6 +253,9 @@ function AdminOrders() {
                   <TableCell className="text-sm">
                     <div className="max-w-[220px]">{deliveryAddress}</div>
                     <div className="text-xs text-muted-foreground">{o.address_snapshot?.city || "City not available"}{o.address_snapshot?.state ? `, ${o.address_snapshot.state}` : ""}</div>
+                    <div className="mt-2 text-xs font-medium text-primary">
+                      Delivery: {o.delivery_date ? new Date(o.delivery_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today (same day)"}
+                    </div>
                     {isCancelled && o.cancellation_reason && (
                       <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">Reason: {o.cancellation_reason}</div>
                     )}

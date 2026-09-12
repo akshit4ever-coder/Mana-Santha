@@ -23,7 +23,6 @@ function Checkout() {
   const { user } = useAuth();
   const { data: cart } = useCart(user?.id);
   const navigate = useNavigate();
-  const [slot, setSlot] = useState("today-evening");
   const [submitting, setSubmitting] = useState(false);
   const [addr, setAddr] = useState({
     full_name: "",
@@ -299,6 +298,16 @@ function Checkout() {
   const deliveryFee = subtotal >= 899 ? 0 : 29;
   const total = subtotal + deliveryFee;
 
+  const getExpectedDeliveryDate = (date = new Date()) => {
+    const nextDate = new Date(date);
+    const isAfterCutoff = nextDate.getHours() >= 20;
+    nextDate.setHours(12, 0, 0, 0);
+    if (isAfterCutoff) {
+      nextDate.setDate(nextDate.getDate() + 1);
+    }
+    return nextDate.toISOString();
+  };
+
   if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please <Link to="/auth" className="text-primary underline">sign in</Link>.</div></div>);
   if (items.length === 0) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Your cart is empty. <Link to="/" className="text-primary underline">Shop now</Link>.</div></div>);
 
@@ -393,6 +402,7 @@ function Checkout() {
         }
       }
 
+      const deliveryDate = getExpectedDeliveryDate();
       const orderPayload = {
         user_id: supabaseUser.id,
         subtotal,
@@ -403,7 +413,8 @@ function Checkout() {
         status: "pending",
         address_snapshot: addr as any,
         address_id: addressId ?? null,
-        delivery_slot: slot,
+        delivery_slot: "same_day",
+        delivery_date: deliveryDate,
       };
 
       console.log("Authenticated user:", supabaseUser);
@@ -444,6 +455,7 @@ function Checkout() {
           customerPhone: addr.phone,
           customerEmail: user.email || "",
           deliveryAddress: [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean).join(", "),
+          deliveryDate: deliveryDate,
           orderItems: items.map((item) => ({
             name: item.products?.name || "Product",
             quantity: item.quantity,
@@ -577,18 +589,11 @@ function Checkout() {
             </section>
 
             <section className="rounded-xl border bg-card p-5 shadow-card">
-              <h3 className="mb-4 font-bold">Delivery Slot</h3>
-              <RadioGroup value={slot} onValueChange={setSlot} className="grid gap-2 sm:grid-cols-3">
-                {[
-                  { v: "today-evening", l: "Today 6–9 PM" },
-                  { v: "tomorrow-morning", l: "Tomorrow 8–11 AM" },
-                  { v: "tomorrow-evening", l: "Tomorrow 6–9 PM" },
-                ].map((s) => (
-                  <label key={s.v} className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${slot === s.v ? "border-primary bg-primary/5" : ""}`}>
-                    <RadioGroupItem value={s.v} /> {s.l}
-                  </label>
-                ))}
-              </RadioGroup>
+              <h3 className="mb-2 font-bold">Delivery</h3>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+                <div className="font-medium">Same-day delivery</div>
+                <div className="mt-1 text-muted-foreground">We will deliver your order within the same day.</div>
+              </div>
             </section>
 
             <section className="rounded-xl border bg-card p-5 shadow-card">

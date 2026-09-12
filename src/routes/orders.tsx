@@ -232,6 +232,7 @@ function OrdersPage() {
                     <div>
                       <div className="text-sm text-muted-foreground">Order #{o.order_number}</div>
                       <div className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString("en-IN")}</div>
+                      <div className="mt-1 text-xs text-primary">Delivery by: {o.delivery_date ? new Date(o.delivery_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today (same day)"}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={statusColor[o.status] ?? ""}>{(o.status || "pending").replace(/_/g, " ")}</Badge>
@@ -253,6 +254,9 @@ function OrdersPage() {
                           o.address_snapshot?.state,
                           o.address_snapshot?.pincode,
                         ].filter(Boolean).join(", ") || "Address not available"}</div>
+                        <div className="mt-2 text-xs font-medium text-primary">
+                          Delivery date: {o.delivery_date ? new Date(o.delivery_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today (same day)"}
+                        </div>
                       </div>
 
                       {isCancelled && (

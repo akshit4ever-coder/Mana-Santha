@@ -183,6 +183,7 @@ export type Database = {
           address_snapshot: Json
           address_id: string | null
           created_at: string
+          delivery_date: string | null
           delivery_fee: number
           delivery_slot: string | null
           discount: number
@@ -201,6 +202,7 @@ export type Database = {
           address_snapshot: Json
           address_id?: string | null
           created_at?: string
+          delivery_date?: string | null
           delivery_fee?: number
           delivery_slot?: string | null
           discount?: number
@@ -219,6 +221,7 @@ export type Database = {
           address_snapshot?: Json
           address_id?: string | null
           created_at?: string
+          delivery_date?: string | null
           delivery_fee?: number
           delivery_slot?: string | null
           discount?: number

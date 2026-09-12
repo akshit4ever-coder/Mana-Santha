@@ -6,6 +6,7 @@ export type OrderNotificationPayload = {
   customerPhone: string;
   customerEmail: string;
   deliveryAddress: string;
+  deliveryDate?: string | null;
   orderItems: Array<{
     name: string;
     quantity: number;
@@ -145,6 +146,10 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
                 <td style="padding: 10px 0; color:#374151;">${new Date(payload.orderTime).toLocaleString('en-IN')}</td>
               </tr>
               <tr>
+                <td style="padding: 10px 0; font-weight: 700; color:#111827;">Delivery Date</td>
+                <td style="padding: 10px 0; color:#374151;">${payload.deliveryDate ? new Date(payload.deliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not available'}</td>
+              </tr>
+              <tr>
                 <td style="padding: 10px 0; font-weight: 700; color:#111827;">Total</td>
                 <td style="padding: 10px 0; color:#374151; font-weight: 700;">${formatMoney(payload.totalAmount)}</td>
               </tr>
@@ -187,6 +192,7 @@ Email: ${payload.customerEmail}
 Delivery Address: ${payload.deliveryAddress}
 Payment Method: ${payload.paymentMethod}
 Order Time: ${new Date(payload.orderTime).toLocaleString('en-IN')}
+Delivery Date: ${payload.deliveryDate ? new Date(payload.deliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not available'}
 Total: ${formatMoney(payload.totalAmount)}
 
 Products:
