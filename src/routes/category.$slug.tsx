@@ -14,7 +14,7 @@ export const Route = createFileRoute("/category/$slug")({
   head: ({ params }) => ({
     meta: [
       { title: `Shop ${params.slug.replace(/-/g, " ")} — Mana Santa` },
-      { name: "description", content: `Browse and buy ${params.slug.replace(/-/g, " ")} online. Fresh, best prices, fast delivery.` },
+      { name: "description", content: `Browse and buy ${params.slug.replace(/-/g, " ")} online. Fresh produce, pantry essentials and best prices.` },
     ],
   }),
   component: CategoryPage,

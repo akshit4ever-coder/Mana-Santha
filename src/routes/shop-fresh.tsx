@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Header } from "@/components/Layout/Header";
 import { Footer } from "@/components/Layout/Footer";
-import { useCategories } from "@/lib/queries";
+import { getShopFreshCategories, useCategories } from "@/lib/queries";
 
 export const Route = createFileRoute("/shop-fresh")({
   head: () => ({ meta: [{ title: "Shop Fresh — Mana Santa" }, { name: "description", content: "Fresh fruits, vegetables, dairy, eggs & meat." }] }),
@@ -9,12 +9,8 @@ export const Route = createFileRoute("/shop-fresh")({
 });
 
 function ShopFreshPage() {
-  const { data: cats } = useCategories();
-  const freshCats = (cats || []).filter((c: any) => {
-    const n = (c.name || "").toLowerCase();
-    const s = (c.slug || "").toLowerCase();
-    return /fruit|veget|milk|dairy|egg|meat/.test(n) || /fruit|veget|milk|dairy|egg|meat/.test(s);
-  });
+  const { data: cats = [] } = useCategories();
+  const freshCats = getShopFreshCategories(cats);
 
   return (
     <div className="min-h-screen bg-background">

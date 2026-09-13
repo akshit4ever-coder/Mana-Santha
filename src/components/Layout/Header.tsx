@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Search, ShoppingCart, User, Heart, LogOut, LayoutDashboard, Package } from "lucide-react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/UI/button";
 import LogoIcon from "@/assets/ManaSantha_Logo.jpeg";
 import TitleImg from "@/assets/Mana Santa Title.jpg";
@@ -7,14 +8,16 @@ import { Input } from "@/components/UI/input";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/queries";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/UI/dropdown-menu";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function Header() {
   const { user, isAdmin, signOut } = useAuth();
   const { data: cart } = useCart(user?.id);
   const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const cartCount = cart?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const cartCount = cart?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? 0;
 
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Account";
 
@@ -23,39 +26,100 @@ export function Header() {
     if (q.trim()) navigate({ to: "/search", search: { q: q.trim() } as any });
   };
 
-  return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="container mx-auto flex h-24 md:h-20 items-center gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-none bg-transparent border-0 shadow-none p-0">
-            <img src={LogoIcon} alt="Mana Santa logo" className="h-14 w-14 md:h-20 md:w-20 object-contain" />
-          </div>
-          <div className="block">
-            <img src={TitleImg} alt="Mana Santa" className="h-12 md:h-16 object-contain" />
-          </div>
-        </Link>
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-        <form onSubmit={onSearch} className="relative ml-2 hidden max-w-xl flex-1 md:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = isMobileMenuOpen ? "hidden" : previousOverflow;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuOpen]);
+
+  return (
+    <header className="sticky top-0 z-40 bg-[rgba(255,249,236,0.95)] backdrop-blur supports-[backdrop-filter]:bg-[rgba(255,249,236,0.85)]">
+      <div className="hidden w-full border-b bg-[#176B3A] px-4 py-1 text-[13px] text-[#fff9ec] md:block">
+        <div className="container mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-sm">
+            <span>🚚 Same Day Delivery in Your Area</span>
+            <span className="opacity-70">🌿 Fresh & Quality Products</span>
+            <span className="opacity-70">❤️ Best Prices Always</span>
+          </div>
+
+          <div className="text-sm opacity-90">📍 Deliver to {/* location preserved by existing site */} Your Area</div>
+        </div>
+      </div>
+
+      {/* Mobile top row */}
+      <div className="container mx-auto px-4 md:hidden">
+        <div className="flex h-12 items-center justify-between gap-2 py-2">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5">
+            <img src={LogoIcon} alt="Mana Santa logo" className="h-11 w-11 object-contain" />
+            <span className="truncate text-lg font-bold text-[#173522]">మన సంత</span>
+          </Link>
+
+          <div className="flex items-center gap-1.5">
+            <Button asChild variant="ghost" size="icon"><Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" /></Link></Button>
+            <Button asChild variant="ghost" size="icon" className="relative"><Link to="/cart"><ShoppingCart className="h-5 w-5 text-[#176B3A]" />{cartCount > 0 && (<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1 text-xs font-bold text-white">{cartCount}</span>)}</Link></Button>
+            <Button aria-label="Open menu" onClick={() => setIsMobileMenuOpen(true)} variant="ghost" size="icon" className="ml-0.5 flex h-9 w-9 items-center justify-center rounded-full border border-[#d9c9a4] bg-[#f4ead3] shadow-sm ring-1 ring-[#f3e2b6]">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="#173522" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile search row */}
+        <form onSubmit={onSearch} className="mb-3">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#173522]" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products..." className="h-12 w-full rounded-full bg-[#fff] pl-12 pr-4 text-sm shadow-sm" />
+          </div>
+        </form>
+
+        {/* Mobile pills */}
+        <div className="mb-3 flex gap-3 overflow-x-auto">
+          <a href="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white">Shop Fresh</a>
+          <a href="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</a>
+        </div>
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden container mx-auto md:flex h-[88px] items-center gap-4 px-4 py-0">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="flex h-17 w-17 items-center justify-center rounded-lg bg-transparent p-0">
+              <img src={LogoIcon} alt="Mana Santa logo" className="h-[3.6rem] w-[3.6rem] object-contain" />
+            </div>
+          </Link>
+
+          <div className="hidden sm:block">
+            <img src={TitleImg} alt="Mana Santa" className="h-12 object-contain" />
+          </div>
+        </div>
+
+        <form onSubmit={onSearch} className="relative mx-4 flex flex-1 items-center sm:mx-6">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#173522]" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search for atta, dal, milk, snacks..."
-            className="h-10 rounded-full border-secondary bg-secondary/50 pl-10"
+            className="h-11 w-full rounded-full border border-[#e6eadf] bg-[#fff9ec] pl-12 text-[#173522] shadow-sm"
           />
         </form>
 
-        <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex">
-            <Link to="/wishlist"><Heart className="h-5 w-5" /></Link>
+        <div className="ml-auto flex items-center gap-2">
+          <Button asChild variant="ghost" size="icon" className="hidden md:inline-flex">
+            <Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" /></Link>
           </Button>
 
-          <Button asChild variant="ghost" className="relative gap-2">
-            <Link to="/cart">
-              <ShoppingCart className="h-5 w-5" />
-              <span className="hidden sm:inline">Cart</span>
+          <Button asChild variant="ghost" className="relative">
+            <Link to="/cart" className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-[#176B3A]" />
+              <span className="hidden md:inline text-sm font-medium text-[#173522]">Cart</span>
               {cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-bold text-accent-foreground">
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1 text-xs font-bold text-white">
                   {cartCount}
                 </span>
               )}
@@ -66,8 +130,8 @@ export function Header() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2 rounded-full px-3">
-                  <User className="h-4 w-4" />
-                  <span className="max-w-[100px] truncate text-xs font-semibold">{displayName}</span>
+                  <User className="h-4 w-4 text-[#176B3A]" />
+                  <span className="max-w-[100px] truncate text-xs font-semibold text-[#173522]">{displayName}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -91,12 +155,57 @@ export function Header() {
         </div>
       </div>
 
-      <form onSubmit={onSearch} className="border-t bg-secondary/30 px-4 py-2 md:hidden">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products..." className="h-9 rounded-full bg-background pl-10" />
-        </div>
-      </form>
+      <div className="hidden md:block border-t bg-[#FFF9EC] px-4 md:px-0">
+        <nav className="container mx-auto flex items-center gap-3 overflow-x-auto py-1">
+          <Link to="/" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Home</Link>
+          <Link to="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Shop Fresh</Link>
+          <Link to="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</Link>
+          <div className="hidden md:flex md:items-center md:gap-3">
+
+            {/* <Link to="/shop-fresh" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Categories</Link>
+            <Link to="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">About Us</Link> */}
+          </div>
+        </nav>
+      </div>
+
+      {mounted && createPortal(
+        <div className={`fixed inset-0 z-[100] ${isMobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
+          <div
+            className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0"}`}
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          <div
+            className={`absolute inset-y-0 right-0 z-[101] h-full w-[85%] max-w-sm overflow-y-auto rounded-l-3xl bg-white shadow-[0_20px_60px_rgba(10,22,15,0.22)] ring-1 ring-black/5 transition-transform duration-300 ease-out ${isMobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}
+          >
+            <div className="flex items-center justify-between border-b border-[#e6eadf] p-4">
+              <div className="flex items-center gap-2">
+                <img src={LogoIcon} alt="Mana Santa" className="h-13 w-13 object-contain" />
+                <div className="font-semibold text-[#173522]">మన సంత</div>
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d9c9a4] bg-[#f7f1e2] text-lg font-semibold text-[#173522] shadow-sm"
+              >
+                ×
+              </button>
+            </div>
+
+            <nav className="flex flex-col gap-3 p-4">
+              <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Home</Link>
+              <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Shop Fresh</Link>
+              <Link to="/kirana-essentials" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Kirana Essentials</Link>
+              <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Categories</Link>
+              <Link to="/orders" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Orders</Link>
+              <Link to="/wishlist" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Wishlist</Link>
+              <Link to="/kirana-essentials" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">About Us</Link>
+              <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Contact</Link>
+            </nav>
+          </div>
+        </div>,
+        document.body
+      )}
     </header>
   );
 }

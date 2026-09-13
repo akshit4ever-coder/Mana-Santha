@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS public.addresses (
   city TEXT NOT NULL,
   state TEXT NOT NULL,
   pincode TEXT NOT NULL,
+  latitude DOUBLE PRECISION NULL,
+  longitude DOUBLE PRECISION NULL,
+  location_accuracy DOUBLE PRECISION NULL,
   label TEXT,
   is_default BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

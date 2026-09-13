@@ -53,7 +53,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Mana Santa — Fresh Groceries Delivered to Your Doorstep" },
-      { name: "description", content: "Shop fresh fruits, vegetables, dairy, kirana essentials and household needs online. Fast delivery, best prices — Mana Santa." },
+      { name: "description", content: "Shop fresh fruits, vegetables, dairy, kirana essentials and household needs online. Same-day delivery, best prices — Mana Santa." },
       { property: "og:title", content: "Mana Santa — Fresh Groceries Delivered" },
       { property: "og:description", content: "Fresh groceries delivered to your doorstep. Kirana, produce, dairy, snacks and more." },
       { property: "og:type", content: "website" },

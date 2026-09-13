@@ -133,13 +133,21 @@
     border-color: var(--color-border);
   }
   body {
-    background-color: var(--color-background);
+    background:
+      radial-gradient(circle at top left, rgba(162, 219, 123, 0.18), transparent 22%),
+      linear-gradient(180deg, #fffefb 0%, #f4fbf2 30%, #fdf7ee 100%);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3, h4 {
     letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .home-shell {
+    background: transparent;
   }
 }
 

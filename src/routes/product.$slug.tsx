@@ -146,7 +146,7 @@ function ProductPage() {
             </div>
 
             <div className="mt-8 grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm shadow-card"><Truck className="h-5 w-5 text-primary" /><div><div className="font-semibold">Fast delivery</div><div className="text-xs text-muted-foreground">Same-day slots</div></div></div>
+              <div className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm shadow-card"><Truck className="h-5 w-5 text-primary" /><div><div className="font-semibold">Same-day delivery</div><div className="text-xs text-muted-foreground">Fresh doorstep service</div></div></div>
               <div className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm shadow-card"><ShieldCheck className="h-5 w-5 text-primary" /><div><div className="font-semibold">100% quality</div><div className="text-xs text-muted-foreground">Fresh guarantee</div></div></div>
             </div>
 

@@ -61,11 +61,11 @@ function AuthPage() {
     // OTP fields cleared (OTP removed)
   };
 
-  // Login Handler (Either Full Name OR Phone Number + Password)
+  // Login Handler (Phone Number + Password)
   const handlePasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginIdentifier.trim()) {
-      toast.error("Please enter your Full Name or Phone number");
+      toast.error("Please enter your mobile number");
       return;
     }
     if (loginPassword.length < 6) {
@@ -159,12 +159,12 @@ function AuthPage() {
               <form onSubmit={handlePasswordSignIn} className="space-y-3">
                 <div>
                   <Label htmlFor="login-id" className="text-xs font-semibold text-muted-foreground uppercase">
-                    Full Name OR Mobile Number *
+                    Mobile Number *
                   </Label>
                   <Input
                     id="login-id"
                     type="text"
-                    placeholder="e.g. Ramesh Kumar or 9876543210"
+                    placeholder="e.g. 9876543210"
                     required
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}

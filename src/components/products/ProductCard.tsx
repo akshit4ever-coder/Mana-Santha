@@ -24,14 +24,14 @@ export function ProductCard({ product }: { product: any }) {
   const outOfStock = selectedVariant ? (selectedVariant.stock ?? 0) <= 0 : (product.stock ?? 0) <= 0;
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-card transition-all hover:-translate-y-0.5 hover:shadow-glow">
-      <Link to="/product/$slug" params={{ slug: product.slug }} className="relative aspect-square overflow-hidden bg-secondary/40">
+    <div className="group relative flex h-full min-h-[420px] flex-col overflow-hidden rounded-xl border border-[#edf2ea] bg-card shadow-card transition-all hover:-translate-y-0.5 hover:shadow-glow">
+      <Link to="/product/$slug" params={{ slug: product.slug }} className="relative block aspect-[1/1.02] overflow-hidden bg-secondary/40">
         <img
           src={selectedVariant?.image_url || firstVariant?.image_url || product.image_url || PLACEHOLDER_IMAGE}
           alt={product.name}
           loading="lazy"
           decoding="async"
-          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           onError={(e: any) => {
             e.currentTarget.src = PLACEHOLDER_IMAGE;
           }}
@@ -39,31 +39,31 @@ export function ProductCard({ product }: { product: any }) {
         {pct > 0 && (
           <Badge className="absolute left-2 top-2 bg-accent text-accent-foreground shadow">{pct}% OFF</Badge>
         )}
-          {outOfStock && (
+        {outOfStock && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/70 text-sm font-semibold">Out of stock</div>
         )}
       </Link>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.brand}</div>
-        <Link to="/product/$slug" params={{ slug: product.slug }} className="line-clamp-2 text-sm font-medium leading-snug hover:text-primary">
+        <Link to="/product/$slug" params={{ slug: product.slug }} className="line-clamp-2 min-h-[38px] text-sm font-medium leading-snug hover:text-primary">
           {product.name}
         </Link>
         <div className="text-xs text-muted-foreground">{product.weight ?? product.unit}</div>
         {product.product_variants && product.product_variants.length > 0 && (
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             {product.product_variants.filter((v: any) => v.is_active !== false).map((v: any) => (
               <button
                 key={v.id}
                 type="button"
                 onClick={() => setSelectedVariant(v)}
-                className={`rounded-lg px-2 py-1 text-xs border ${selectedVariant?.id === v.id ? 'bg-primary/10 text-primary font-semibold' : 'bg-card hover:bg-secondary'}`}
+                className={`rounded-lg border px-2 py-1 text-xs ${selectedVariant?.id === v.id ? 'bg-primary/10 text-primary font-semibold' : 'bg-card hover:bg-secondary'}`}
               >
                 {v.name}
               </button>
             ))}
           </div>
         )}
-        <div className="mt-auto flex items-end justify-between pt-2">
+        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <div>
             <div className="text-base font-bold">{formatINR(displayPrice)}</div>
             {pct > 0 && <div className="text-xs text-muted-foreground line-through">{formatINR(displayMrp)}</div>}

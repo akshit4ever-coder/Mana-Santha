@@ -17,16 +17,30 @@ export const useCategories = () =>
     },
   });
 
-export const useProducts = (opts?: { categorySlug?: string; featured?: boolean; search?: string; limit?: number }) =>
+export const shopFreshCategoryPattern = /fruit|veget|milk|dairy|egg|meat|dry fruit|nut/i;
+
+export function getShopFreshCategories(categories: any[] = []) {
+  return (categories || []).filter((category: any) => {
+    const name = (category?.name ?? "").toLowerCase();
+    const slug = (category?.slug ?? "").toLowerCase();
+    return shopFreshCategoryPattern.test(name) || shopFreshCategoryPattern.test(slug);
+  });
+}
+
+export const useProducts = (opts?: { categorySlug?: string; categoryId?: string; categoryIds?: string[]; featured?: boolean; search?: string; limit?: number }) =>
   useQuery({
     queryKey: ["products", opts],
     queryFn: async () => {
+      if (opts?.categoryIds && opts.categoryIds.length === 0) return [];
+
       let q = supabase
         .from("products")
         .select("*, categories(name, slug), subcategories(name, slug), product_variants(*)")
         .eq("is_active", true);
       if (opts?.featured) q = q.eq("is_featured", true);
       if (opts?.search) q = q.ilike("name", `%${opts.search}%`);
+      if (opts?.categoryId) q = q.eq("category_id", opts.categoryId);
+      if (opts?.categoryIds && opts.categoryIds.length > 0) q = q.in("category_id", opts.categoryIds);
       if (opts?.limit) q = q.limit(opts.limit);
       const { data, error } = await q.order("sort_order", { ascending: true }).order("created_at", { ascending: false });
       if (error) throw error;
@@ -37,6 +51,19 @@ export const useProducts = (opts?: { categorySlug?: string; featured?: boolean; 
       return rows;
     },
   });
+
+export const useShopFreshProducts = () => {
+  const { data: categories = [] } = useCategories();
+  const shopFreshCategories = getShopFreshCategories(categories);
+  const categoryIds = shopFreshCategories
+    .map((category: any) => category.id)
+    .filter(Boolean);
+
+  return useProducts({
+    categoryIds: categoryIds.length > 0 ? categoryIds : [],
+    limit: 12,
+  });
+};
 
 export const useProduct = (slug: string) =>
   useQuery({

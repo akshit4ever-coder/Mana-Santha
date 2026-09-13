@@ -13,6 +13,7 @@ import { formatINR } from "@/lib/format";
 import { toast } from "sonner";
 import { Loader2, MapPin, Wallet } from "lucide-react";
 import { STORE_LAT, STORE_LNG, STORE_LOCATION, DELIVERY_RADIUS_KM } from "@/lib/config";
+import { lookupLocalVillage, findNearestVillage } from "@/lib/localVillages";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — Mana Santa" }, { name: "description", content: "Complete your order with cash on delivery." }] }),
@@ -43,15 +44,149 @@ function Checkout() {
   const checkAbortRef = useRef<AbortController | null>(null);
   const checkRequestIdRef = useRef(0);
   const storeCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const currentLocationCoordsRef = useRef<{ lat: number; lng: number; accuracy: number | null } | null>(null);
+  const [currentLocationCoords, setCurrentLocationCoords] = useState<{ lat: number; lng: number; accuracy: number | null } | null>(null);
 
   // Sanitize Address Line 1 to avoid full-address paste. If user pastes a full address
   // we keep the first two comma-separated parts as Line 1 and move the rest to Line 2.
+  const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   const sanitizeLine1 = (value: string) => {
     const parts = String(value).split(",").map((s) => s.trim()).filter(Boolean);
     if (parts.length <= 2) return { line1: parts.join(", "), line2: "" };
     const line1 = parts.slice(0, 2).join(", ");
     const line2 = parts.slice(2).join(", ");
     return { line1, line2 };
+  };
+
+  const clearCurrentLocation = () => {
+    currentLocationCoordsRef.current = null;
+    setCurrentLocationCoords(null);
+    setDeliveryAvailable(null);
+    setDeliveryDistance(null);
+    setDeliveryError(null);
+  };
+
+  const stripAdminSuffix = (value: string) =>
+    String(value)
+      .replace(/\s*\b(village|hamlet|mandal|panchayat|ward|colony)\b\s*/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const restoreSavedAddressLocation = (savedAddress: any) => {
+    const hasSavedGps = savedAddress && savedAddress.latitude != null && savedAddress.longitude != null && String(savedAddress.latitude).trim() !== "" && String(savedAddress.longitude).trim() !== "";
+    if (!hasSavedGps) {
+      if (import.meta.env.DEV) {
+        console.log("[ADDRESS DEBUG] SAVED ADDRESS HAS NO GPS — USING TEXT GEOCODING");
+      }
+      return false;
+    }
+
+    const latitude = Number(savedAddress.latitude);
+    const longitude = Number(savedAddress.longitude);
+    const accuracy = savedAddress.location_accuracy == null ? null : Number(savedAddress.location_accuracy);
+    const nextCoords = { lat: latitude, lng: longitude, accuracy };
+
+    currentLocationCoordsRef.current = nextCoords;
+    setCurrentLocationCoords(nextCoords);
+
+    if (import.meta.env.DEV) {
+      console.log("[ADDRESS DEBUG] RESTORING SAVED GPS LOCATION", {
+        latitude,
+        longitude,
+        accuracy,
+      });
+    }
+
+    const distance = distanceKm(STORE_LAT, STORE_LNG, latitude, longitude);
+    const available = distance <= DELIVERY_RADIUS_KM;
+
+    if (import.meta.env.DEV) {
+      console.log("[DELIVERY DEBUG] SAVED GPS DISTANCE", {
+        distanceKm: distance,
+        radiusKm: DELIVERY_RADIUS_KM,
+        available,
+      });
+    }
+
+    setDeliveryDistance(distance);
+    setDeliveryAvailable(available);
+    setDeliveryError(null);
+    return true;
+  };
+
+  const parseReverseGeocodedAddress = (body: any) => {
+    const feature = body?.features?.[0];
+    const geocoding = feature?.properties?.geocoding ?? null;
+    const legacyAddress = body?.address ?? {};
+
+    const source = geocoding || legacyAddress;
+    if (!source || Object.keys(source).length === 0) {
+      return null;
+    }
+
+    const houseNumber = source.house_number ?? source.housenumber ?? "";
+    const street = source.street ?? source.road ?? source.name ?? "";
+    const locality = source.locality ?? "";
+    const district = source.district ?? source.city_district ?? source.state_district ?? "";
+    const city = source.city ?? "";
+    const town = source.town ?? "";
+    const village = source.village ?? "";
+    const county = source.county ?? "";
+    const municipality = source.municipality ?? "";
+    const suburb = source.suburb ?? "";
+    const neighbourhood = source.neighbourhood ?? "";
+    const state = source.state ?? "";
+    const postcode = source.postcode ?? source.postalcode ?? "";
+
+    const line1Base = [houseNumber, street].filter(Boolean).join(", ").trim();
+    const line2Candidates = [neighbourhood, suburb, locality].filter(Boolean);
+    const line2Value = line2Candidates.find((value) => value && value !== city && value !== town && value !== village && value !== municipality) || "";
+
+    const cityCandidates = [town, municipality, city, locality, suburb, neighbourhood, village, district, county].filter(Boolean);
+    const normalizeCityCandidate = (value: string) => stripAdminSuffix(String(value).trim().replace(/\s+/g, " "));
+    const cityPriority = cityCandidates
+      .map((value) => normalizeCityCandidate(value))
+      .filter(Boolean)
+      .filter((value) => {
+        const normalized = value.toLowerCase();
+        return !normalized.includes("village") && !normalized.includes("hamlet") && !normalized.includes("mandal") && !normalized.includes("panchayat") && !normalized.includes("ward") && !normalized.includes("colony");
+      });
+
+    const line2CityHint = normalizeCityCandidate(line2Value);
+    const selectedCity = stripAdminSuffix(cityPriority[0] || line2CityHint || cityCandidates[0] || "");
+
+    let line1 = sanitizeLine1(line1Base).line1 || line1Base;
+    const line2 = stripAdminSuffix((line2Value && line2Value !== selectedCity ? line2Value : "").trim());
+
+    if (!line1 && body?.display_name) {
+      const segs = String(body.display_name).replace(/\s*,\s*India\s*$/i, "").split(",").map((s: string) => s.trim()).filter(Boolean);
+      line1 = segs.slice(0, 2).join(", ");
+      if (!line1) {
+        line1 = segs[0] || "";
+      }
+    }
+
+    const finalLine1 = stripAdminSuffix(sanitizeLine1(line1).line1 || line1);
+    const selectedAddress = {
+      line1: finalLine1,
+      line2: stripAdminSuffix(line2),
+      city: stripAdminSuffix(selectedCity || city || town || village || municipality || district || county || ""),
+      state: stripAdminSuffix(state),
+      pincode: postcode,
+    };
+
+    if (import.meta.env.DEV) {
+      console.log("[ADDRESS DEBUG] SELECTED ADDRESS", {
+        line1: selectedAddress.line1,
+        line2: selectedAddress.line2,
+        city: selectedAddress.city,
+        state: selectedAddress.state,
+        pincode: selectedAddress.pincode,
+      });
+    }
+
+    return selectedAddress;
   };
 
   // Haversine distance (km)
@@ -75,7 +210,6 @@ function Checkout() {
       return null;
     }
 
-    // Ignore stale requests caused by rapid typing or geolocation updates.
     const requestId = ++checkRequestIdRef.current;
     if (checkAbortRef.current) checkAbortRef.current.abort();
     const ac = new AbortController();
@@ -96,6 +230,13 @@ function Checkout() {
         }
       }
 
+      if (import.meta.env.DEV) {
+        console.log("[DELIVERY DEBUG] STORE COORDINATES:", {
+          latitude: storeCoordsRef.current?.lat,
+          longitude: storeCoordsRef.current?.lng,
+        });
+      }
+
       const geocodeOnce = async (qstr: string) => {
         const q = encodeURIComponent(qstr);
         console.debug("Geocoding query:", qstr);
@@ -106,11 +247,52 @@ function Checkout() {
         return (b && b.length > 0) ? b[0] : null;
       };
 
+      const storeLat = storeCoordsRef.current?.lat ?? STORE_LAT;
+      const storeLng = storeCoordsRef.current?.lng ?? STORE_LNG;
+
+      const gpsCustomerCoords = currentLocationCoordsRef.current;
+      if (gpsCustomerCoords) {
+        const customerLat = gpsCustomerCoords.lat;
+        const customerLng = gpsCustomerCoords.lng;
+        const d = distanceKm(storeLat, storeLng, customerLat, customerLng);
+        const toleranceKm = gpsCustomerCoords.accuracy != null ? Math.max(0.25, Math.min(0.5, gpsCustomerCoords.accuracy / 1000 / 2)) : 0.25;
+        const effectiveRadiusKm = DELIVERY_RADIUS_KM + toleranceKm;
+        const ok = d <= effectiveRadiusKm;
+
+        console.info("[DELIVERY DEBUG] GPS CHECK", {
+          store: { latitude: storeLat, longitude: storeLng },
+          customer: { latitude: customerLat, longitude: customerLng, accuracy: gpsCustomerCoords.accuracy },
+          deliveryRadiusKm: DELIVERY_RADIUS_KM,
+          toleranceKm,
+          effectiveRadiusKm,
+          distanceKm: d,
+          available: ok,
+        });
+
+        setDeliveryDistance(d);
+        setAddressNotFound(false);
+        setDeliveryError(null);
+        setDeliveryAvailable(ok);
+        return ok;
+      }
+
       const normalized = String(addressQuery).replace(/\s*,?\s*India\s*$/i, "").trim();
       const pinMatch = normalized.match(/(\d{5,6})/);
       const pin = pinMatch ? pinMatch[0] : (addr.pincode || "");
       const cityPart = addr.city || "";
       const statePart = addr.state || "";
+
+      // Attempt to resolve common local villages from a small offline lookup
+      const localMatch = lookupLocalVillage(addr.city) || lookupLocalVillage(addr.line1) || lookupLocalVillage(addr.line2);
+      if (localMatch) {
+        const d = distanceKm(storeLat, storeLng, localMatch.lat, localMatch.lng);
+        const ok = d <= DELIVERY_RADIUS_KM;
+        setDeliveryDistance(d);
+        setAddressNotFound(false);
+        setDeliveryError(null);
+        setDeliveryAvailable(ok);
+        return ok;
+      }
 
       const attempts = Array.from(new Set([
         normalized,
@@ -149,13 +331,39 @@ function Checkout() {
 
       const lat = Number(geo.lat);
       const lon = Number(geo.lon);
-      const { lat: storeLat, lng: storeLng } = storeCoordsRef.current as { lat: number; lng: number };
       const d = distanceKm(storeLat, storeLng, lat, lon);
-      const ok = d <= DELIVERY_RADIUS_KM;
+      const toleranceKm = 0.5;
+      const effectiveRadiusKm = DELIVERY_RADIUS_KM + toleranceKm;
+      const ok = d <= effectiveRadiusKm;
       setDeliveryDistance(d);
       setAddressNotFound(false);
       setDeliveryError(null);
-      console.info("Delivery check — store:", storeCoordsRef.current, "customer:", { lat, lon }, "distance_km:", d, "radius_km:", DELIVERY_RADIUS_KM, "ok:", ok);
+
+      console.info("[DELIVERY DEBUG] GEOCODED ADDRESS CHECK", {
+        store: { latitude: storeLat, longitude: storeLng },
+        customer: { latitude: lat, longitude: lon },
+        deliveryRadiusKm: DELIVERY_RADIUS_KM,
+        toleranceKm,
+        effectiveRadiusKm,
+        distanceKm: d,
+        available: ok,
+        geocodeQuery: normalized,
+      });
+
+      if (import.meta.env.DEV) {
+        console.log("[DELIVERY DEBUG] CUSTOMER COORDINATES USED:", {
+          latitude: lat,
+          longitude: lon,
+        });
+        console.log("[DELIVERY DEBUG] STORE COORDINATES USED:", {
+          latitude: storeLat,
+          longitude: storeLng,
+        });
+        console.log("[DELIVERY DEBUG] DELIVERY RADIUS:", DELIVERY_RADIUS_KM);
+        console.log("[DELIVERY DEBUG] CALCULATED DISTANCE:", d);
+        console.log("[DELIVERY DEBUG] DELIVERY AVAILABLE:", ok);
+      }
+      console.info("Delivery check — store:", { lat: storeLat, lng: storeLng }, "customer:", { lat, lon }, "distance_km:", d, "radius_km:", effectiveRadiusKm, "ok:", ok);
       setDeliveryAvailable(ok);
       return ok;
     } catch (err) {
@@ -175,6 +383,67 @@ function Checkout() {
     }
   };
 
+  const getCurrentPositionWithRetry = async (): Promise<GeolocationPosition> => {
+    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+    const maxAttempts = 5;
+    const backoffMs = [0, 1000, 2000, 4000, 4000];
+
+    const tryGetPosition = async (attempt: number): Promise<GeolocationPosition> => {
+      if (import.meta.env.DEV) {
+        console.log("[LOCATION DEBUG] GPS ATTEMPT", {
+          attempt,
+          maxAttempts,
+          options,
+        });
+      }
+
+      return new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (import.meta.env.DEV) {
+              console.log("[LOCATION DEBUG] GPS SUCCESS", {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy ?? null,
+                attempt,
+              });
+            }
+            resolve(position);
+          },
+          (error) => {
+            if (import.meta.env.DEV) {
+              console.error("[LOCATION DEBUG] GPS FAILURE", {
+                code: error.code,
+                message: error.message,
+                attempt,
+                maxAttempts,
+              });
+            }
+
+            if (error.code === 1) {
+              reject(error);
+              return;
+            }
+
+            const canRetry = (error.code === 2 || error.code === 3) && attempt < maxAttempts;
+            if (!canRetry) {
+              reject(error);
+              return;
+            }
+
+            const delay = backoffMs[Math.min(attempt - 1, backoffMs.length - 1)] ?? 0;
+            window.setTimeout(() => {
+              tryGetPosition(attempt + 1).then(resolve).catch(reject);
+            }, delay);
+          },
+          options,
+        );
+      });
+    };
+
+    return tryGetPosition(1);
+  };
+
   // Use browser geolocation + reverse geocode to fill address fields
   const useCurrentLocation = async () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -183,36 +452,146 @@ function Checkout() {
     }
 
     setCheckingDelivery(true);
+    currentLocationCoordsRef.current = null;
+    setCurrentLocationCoords(null);
+
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 })
-      );
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`);
-      if (!res.ok) throw new Error("Failed to reverse geocode");
-      const body = await res.json();
-      const addrParts = body.address ?? {};
-      // Build a cleaner Address Line 1 from reverse geocode
-      let rawLine1 = [addrParts.house_number, addrParts.road, addrParts.neighbourhood, addrParts.suburb].filter(Boolean).join(", ");
-      if (!rawLine1 && body.display_name) {
-        // Use first two display_name segments as a fallback
-        const segs = String(body.display_name).replace(/\s*,\s*India\s*$/i, "").split(",").map((s: string) => s.trim()).filter(Boolean);
-        rawLine1 = segs.slice(0, 2).join(", ");
+      const pos = await getCurrentPositionWithRetry();
+      const latitude = pos.coords.latitude;
+      const longitude = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy ?? null;
+
+      if (import.meta.env.DEV) {
+        console.log("[LOCATION DEBUG] GPS SUCCESS", {
+          latitude,
+          longitude,
+          accuracy,
+          altitude: pos.coords.altitude,
+          heading: pos.coords.heading,
+          speed: pos.coords.speed,
+        });
       }
-      const sanitized = sanitizeLine1(rawLine1);
-      const line1 = sanitized.line1;
-      const line2 = sanitized.line2 || [addrParts.suburb, addrParts.neighbourhood].filter(Boolean).join(", ") || "";
-      const city = addrParts.city || addrParts.town || addrParts.village || addrParts.county || addrParts.state_district || "";
-      const state = addrParts.state || "";
-      const pincode = addrParts.postcode || "";
-      setAddr((a) => ({ ...a, line1, line2, city, state, pincode }));
-      const q = [line1, line2, city, state, pincode].filter(Boolean).join(", ");
-      await checkDeliveryAvailability(q + ", India");
+
+      if (accuracy !== null && accuracy > 1000) {
+        console.warn("[LOCATION DEBUG] GPS accuracy is poor:", { accuracy, latitude, longitude });
+        toast.warning("Current location accuracy is low; the detected address may be approximate.");
+      }
+
+      const nextCoords = { lat: latitude, lng: longitude, accuracy };
+      currentLocationCoordsRef.current = nextCoords;
+      setCurrentLocationCoords(nextCoords);
+
+      // Check for a nearby known village before reverse geocoding.
+      const nearestVillage = findNearestVillage(latitude, longitude);
+
+      const storeLat = STORE_LAT;
+      const storeLng = STORE_LNG;
+      const distance = distanceKm(storeLat, storeLng, latitude, longitude);
+      const available = distance <= DELIVERY_RADIUS_KM;
+
+      if (import.meta.env.DEV) {
+        console.log("[DELIVERY] Distance", {
+          distanceKm: distance,
+          radiusKm: DELIVERY_RADIUS_KM,
+          available,
+        });
+      }
+
+      setDeliveryDistance(distance);
+      setDeliveryAvailable(available);
+      setDeliveryError(null);
+
+      let body: any = null;
+      try {
+        if (import.meta.env.DEV) {
+          console.log("[ADDRESS DEBUG] GPS COORDINATES", {
+            latitude,
+            longitude,
+            accuracy,
+          });
+          console.log("[ADDRESS] Reverse geocoding coordinates", {
+            latitude,
+            longitude,
+          });
+        }
+
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=geocodejson&addressdetails=1&zoom=18&accept-language=en`);
+        if (!res.ok) throw new Error("Failed to reverse geocode");
+        body = await res.json();
+
+        if (import.meta.env.DEV) {
+          console.log("[ADDRESS] Reverse geocoding SUCCESS", body);
+          console.log("[ADDRESS DEBUG] FULL GEOCODEJSON RESPONSE:", body);
+          console.log("[ADDRESS DEBUG] GEOCODEJSON FEATURE:", body?.features?.[0]);
+          console.log("[ADDRESS DEBUG] GEOCODING PROPERTIES:", body?.features?.[0]?.properties?.geocoding);
+        }
+      } catch (reverseError: any) {
+        if (import.meta.env.DEV) {
+          console.error("[ADDRESS] Reverse geocoding FAILED", reverseError);
+        }
+        toast.warning("Location detected, but we couldn't resolve your address automatically. Please enter your address manually.");
+        return;
+      }
+
+      const feature = Array.isArray(body?.features) ? body.features[0] : null;
+      const geocoding = feature?.properties?.geocoding ?? body?.features?.[0]?.properties?.geocoding ?? {};
+      const legacyAddress = body?.address ?? {};
+
+      if (import.meta.env.DEV) {
+        console.log("[ADDRESS DEBUG] GPS COORDINATES", { latitude, longitude, accuracy });
+        console.log("[ADDRESS DEBUG] GEOCODER RESPONSE", body);
+        console.log("[ADDRESS DEBUG] GEOCODING CLASSIFICATION", {
+          street: geocoding.street ?? geocoding.road ?? legacyAddress.road ?? legacyAddress.street,
+          locality: geocoding.locality ?? legacyAddress.locality,
+          district: geocoding.district ?? legacyAddress.district ?? legacyAddress.city_district ?? legacyAddress.state_district,
+          city: geocoding.city ?? legacyAddress.city,
+          town: geocoding.town ?? legacyAddress.town,
+          village: geocoding.village ?? legacyAddress.village,
+          suburb: geocoding.suburb ?? legacyAddress.suburb,
+          neighbourhood: geocoding.neighbourhood ?? legacyAddress.neighbourhood,
+          municipality: geocoding.municipality ?? legacyAddress.municipality,
+          state: geocoding.state ?? legacyAddress.state,
+          postcode: geocoding.postcode ?? legacyAddress.postcode,
+        });
+      }
+
+      const parsedAddress = parseReverseGeocodedAddress(body);
+      if (import.meta.env.DEV && parsedAddress) {
+        console.log("[ADDRESS DEBUG] SELECTED ADDRESS", {
+          line1: parsedAddress.line1,
+          line2: parsedAddress.line2,
+          city: parsedAddress.city,
+          state: parsedAddress.state,
+          pincode: parsedAddress.pincode,
+        });
+      }
+      if (parsedAddress) {
+        // If a nearby village was found via local lookup, prefer that as the city
+        // since Nominatim can sometimes return broader locality names.
+        if (nearestVillage) {
+          parsedAddress.city = nearestVillage.name;
+        }
+        setAddr((a) => ({ ...a, ...parsedAddress }));
+      }
+
       toast.success("Location detected — please verify address details before saving or placing order");
     } catch (e: any) {
-      console.warn("Geolocation/reverse geocode failed", e);
-      toast.error(e?.message || "Failed to detect location");
+      const code = e?.code;
+      let message = "Unable to detect your location right now. Please make sure Location Services are enabled and try again.";
+
+      if (code === 1) {
+        message = "Location access was denied. Please allow location access for this site in your browser settings and try again.";
+      } else if (code === 2) {
+        message = "Your location could not be detected right now. Please make sure Location Services are enabled and try again.";
+      } else if (code === 3) {
+        message = "Location detection timed out. Please try again.";
+      }
+
+      console.warn("Geolocation failed", e);
+      setDeliveryAvailable(null);
+      setDeliveryDistance(null);
+      setDeliveryError(message);
+      toast.error(message);
     } finally {
       setCheckingDelivery(false);
     }
@@ -228,6 +607,25 @@ function Checkout() {
       toast.error("Please fill all address fields before saving");
       return;
     }
+
+    const currentGps = currentLocationCoordsRef.current;
+    const latitude = currentGps?.lat ?? null;
+    const longitude = currentGps?.lng ?? null;
+    const locationAccuracy = currentGps?.accuracy ?? null;
+
+    if (import.meta.env.DEV && currentGps) {
+      console.log("[ADDRESS DEBUG] SAVING GPS-BACKED ADDRESS", {
+        latitude,
+        longitude,
+        accuracy: locationAccuracy,
+        line1: addr.line1,
+        line2: addr.line2,
+        city: addr.city,
+        state: addr.state,
+        pincode: addr.pincode,
+      });
+    }
+
     try {
       const { data: newAddr, error: addrErr } = await (supabase as any)
         .from("addresses")
@@ -240,6 +638,9 @@ function Checkout() {
           city: addr.city,
           state: addr.state,
           pincode: addr.pincode,
+          latitude,
+          longitude,
+          location_accuracy: locationAccuracy,
           is_default: false,
         })
         .select()
@@ -256,7 +657,25 @@ function Checkout() {
 
   // Run check when address fields change (debounced)
   useEffect(() => {
-    // Prefer full address (line1 present); otherwise try city + pincode if both provided
+    const hasCurrentLocation = !!currentLocationCoordsRef.current;
+    const hasLiveAddressValues = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].some((value) => String(value ?? "").trim().length > 0);
+    if (!hasLiveAddressValues) {
+      setDeliveryAvailable(null);
+      return;
+    }
+
+    if (hasCurrentLocation) {
+      const current = currentLocationCoordsRef.current;
+      if (current) {
+        const distance = distanceKm(STORE_LAT, STORE_LNG, current.lat, current.lng);
+        const available = distance <= DELIVERY_RADIUS_KM;
+        setDeliveryDistance(distance);
+        setDeliveryAvailable(available);
+        setDeliveryError(null);
+        return;
+      }
+    }
+
     let qParts: string[] = [];
     if (addr.line1 && addr.line1.trim().length > 0) {
       qParts = [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean);
@@ -271,7 +690,7 @@ function Checkout() {
     const qStr = `${qParts.join(" ")}, India`;
     const id = setTimeout(() => { checkDeliveryAvailability(qStr); }, 700);
     return () => clearTimeout(id);
-  }, [addr.line1, addr.line2, addr.city, addr.state, addr.pincode]);
+  }, [addr.line1, addr.line2, addr.city, addr.state, addr.pincode, currentLocationCoords]);
 
   // Load saved addresses for authenticated user
   useEffect(() => {
@@ -295,7 +714,7 @@ function Checkout() {
 
   const items: any[] = (cart ?? []) as any[];
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
-  const deliveryFee = subtotal >= 899 ? 0 : 29;
+  const deliveryFee = subtotal >= 499 ? 0 : 29;
   const total = subtotal + deliveryFee;
 
   const getExpectedDeliveryDate = (date = new Date()) => {
@@ -380,6 +799,11 @@ function Checkout() {
           addressId = found.id;
           setSelectedAddressId(addressId);
         } else {
+          const currentGps = currentLocationCoordsRef.current;
+          const latitude = currentGps?.lat ?? null;
+          const longitude = currentGps?.lng ?? null;
+          const locationAccuracy = currentGps?.accuracy ?? null;
+
           const { data: newAddr, error: addrErr } = await (supabase as any)
             .from("addresses")
             .insert({
@@ -391,6 +815,9 @@ function Checkout() {
                 city: addr.city,
                 state: addr.state,
                 pincode: addr.pincode,
+                latitude,
+                longitude,
+                location_accuracy: locationAccuracy,
                 is_default: false,
               })
             .select()
@@ -512,19 +939,39 @@ function Checkout() {
                     <div key={a.id} className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${selectedAddressId === a.id ? "border-primary bg-primary/5" : "hover:bg-secondary"}`}>
                       <div>
                                         <div className="font-medium">{a.full_name} <span className="text-muted-foreground">• {a.phone}</span></div>
-                                                        <div className="text-sm text-muted-foreground">{a.line1}{a.line2 ? ", " + a.line2 : ""}, {a.city}{a.state ? `, ${a.state}` : ""} — {a.pincode}</div>
+                                                        <div className="text-sm text-muted-foreground">{stripAdminSuffix(a.line1)}{a.line2 ? ", " + stripAdminSuffix(a.line2) : ""}, {stripAdminSuffix(a.city)}{a.state ? `, ${stripAdminSuffix(a.state)}` : ""} — {a.pincode}</div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button type="button" className="text-sm text-primary underline" onClick={() => {
-                                          setAddr({
-                                            full_name: a.full_name,
-                                            phone: a.phone,
-                                            line1: a.line1,
-                                            line2: a.line2 ?? "",
-                                            city: a.city,
-                                            state: a.state ?? "",
-                                            pincode: a.pincode,
-                                          });
+                          const savedHasGps = a.latitude != null && a.longitude != null && String(a.latitude).trim() !== "" && String(a.longitude).trim() !== "";
+
+                          if (savedHasGps) {
+                            const restored = restoreSavedAddressLocation(a);
+                            if (restored) {
+                              setAddr({
+                                full_name: a.full_name,
+                                phone: a.phone,
+                                line1: a.line1,
+                                line2: stripAdminSuffix(a.line2 ?? ""),
+                                city: stripAdminSuffix(a.city),
+                                state: stripAdminSuffix(a.state ?? ""),
+                                pincode: a.pincode,
+                              });
+                              setSelectedAddressId(a.id);
+                              return;
+                            }
+                          }
+
+                          clearCurrentLocation();
+                          setAddr({
+                            full_name: a.full_name,
+                            phone: a.phone,
+                            line1: a.line1,
+                            line2: stripAdminSuffix(a.line2 ?? ""),
+                            city: stripAdminSuffix(a.city),
+                            state: stripAdminSuffix(a.state ?? ""),
+                            pincode: a.pincode,
+                          });
                           setSelectedAddressId(a.id);
                           const q = [a.line1, a.line2, a.city, a.state, a.pincode].filter(Boolean).join(" ");
                           checkDeliveryAvailability(q + ", India");
@@ -567,12 +1014,25 @@ function Checkout() {
                 <div className="sm:col-span-2"><Label>Address Line 1</Label><Input placeholder="House No., Street, Landmark" required value={addr.line1} onChange={(e) => {
                   const v = e.target.value;
                   const { line1, line2 } = sanitizeLine1(v);
+                  clearCurrentLocation();
                   setAddr((a) => ({ ...a, line1, line2: line2 || a.line2 }));
                 }} /></div>
-                <div className="sm:col-span-2"><Label>Address Line 2 (optional)</Label><Input value={addr.line2} onChange={(e) => setAddr({ ...addr, line2: e.target.value })} /></div>
-                <div><Label>City</Label><Input required value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} /></div>
-                <div><Label>State</Label><Input required value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} /></div>
-                <div><Label>Pincode</Label><Input required value={addr.pincode} onChange={(e) => setAddr({ ...addr, pincode: e.target.value })} /></div>
+                <div className="sm:col-span-2"><Label>Address Line 2 (optional)</Label><Input value={addr.line2} onChange={(e) => {
+                  clearCurrentLocation();
+                  setAddr({ ...addr, line2: e.target.value });
+                }} /></div>
+                <div><Label>City</Label><Input required value={addr.city} onChange={(e) => {
+                  clearCurrentLocation();
+                  setAddr({ ...addr, city: e.target.value });
+                }} /></div>
+                <div><Label>State</Label><Input required value={addr.state} onChange={(e) => {
+                  clearCurrentLocation();
+                  setAddr({ ...addr, state: e.target.value });
+                }} /></div>
+                <div><Label>Pincode</Label><Input required value={addr.pincode} onChange={(e) => {
+                  clearCurrentLocation();
+                  setAddr({ ...addr, pincode: e.target.value });
+                }} /></div>
                 {addressNotFound && (
                   <div className="sm:col-span-2 text-sm text-warning">⚠️ We couldn't verify this address. Please check the address, enter a nearby landmark, or use Current Location.</div>
                 )}

@@ -1,0 +1,18 @@
+<svg width="600" height="420" viewBox="0 0 600 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="festivalGrad" x1="48" y1="40" x2="462" y2="396" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF7E6"/>
+      <stop offset="1" stop-color="#F7D28C"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="420" rx="26" fill="url(#festivalGrad)"/>
+  <circle cx="122" cy="118" r="80" fill="#F4BA4A" fill-opacity="0.6"/>
+  <circle cx="470" cy="100" r="54" fill="#F5D18C" fill-opacity="0.9"/>
+  <path d="M168 290C168 218.71 225.71 161 297 161H303C374.29 161 432 218.71 432 290V315H168V290Z" fill="#E59A35" fill-opacity="0.82"/>
+  <path d="M210 178C210 138.235 242.235 106 282 106H314C353.765 106 386 138.235 386 178V218H210V178Z" fill="#D17D2A" fill-opacity="0.76"/>
+  <path d="M232 120L300 60L368 120" stroke="#A35D1A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M300 214V334" stroke="#A35D1A" stroke-width="16" stroke-linecap="round"/>
+  <path d="M257 260L300 217L343 260" stroke="#A35D1A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M226 324L300 282L374 324" stroke="#A35D1A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="102" y="372" fill="#7A4312" font-size="34" font-weight="700" font-family="Arial, sans-serif">Festive Essentials</text>
+</svg>
