@@ -14,6 +14,7 @@ import { useCategories, useProducts, useShopFreshProducts } from "@/lib/queries"
 
 import { FestivalHero } from "@/components/festival/FestivalHero";
 import GaneshImage from "@/assets/festival/ganesh_image.png";
+import GaneshMobile from "@/assets/festival/ganesh_mobile.png";
 import { TrustFeatures } from "@/components/festival/TrustFeatures";
 import { FestivalCategorySlider } from "@/components/festival/FestivalCategorySlider";
 import { FestivalOfferBanner } from "@/components/festival/FestivalOfferBanner";
@@ -387,7 +388,11 @@ function Home() {
     (groceryCategory ? `/category/${groceryCategory.slug}` : "") ||
     "/kirana-essentials";
 
-  const categoryViewAllRoute = kiranaCategory ? `/category/${kiranaCategory.slug}` : "/kirana-essentials";
+  const categoryViewAllRoute = poojaCategory
+    ? `/category/${poojaCategory.slug}`
+    : kiranaCategory
+    ? `/category/${kiranaCategory.slug}`
+    : "/kirana-essentials";
 
   const benefits = [
     {
@@ -426,6 +431,7 @@ function Home() {
           title="Happy Ganesh Utsav"
           subtitle="Celebrate new beginnings with fresh essentials from Mana Santa"
           bannerImage={GaneshImage}
+          mobileBannerImage={GaneshMobile}
           ctaRoute={heroRoute}
           ctaLabel="Shop Festival Essentials"
           badge="GANESH UTSAV"
@@ -443,10 +449,10 @@ function Home() {
               <p className="mt-1 text-sm text-[#657267]">Everything you need for your celebrations</p>
             </div>
 
-            <a href={categoryViewAllRoute.startsWith("/category/") ? `/category/${kiranaCategory?.slug ?? "kirana-essentials"}` : categoryViewAllRoute} className="flex items-center gap-1 text-sm font-bold text-[#176b38]">
+            <Link to={categoryViewAllRoute} className="flex items-center gap-1 text-sm font-bold text-[#176b38]">
               View All
               <ArrowRight className="h-4 w-4" />
-            </a>
+            </Link>
           </div>
 
           <FestivalCategorySlider categories={festivalCategories.length > 0 ? festivalCategories : categoryDefinitions.slice(0,6).map(d => ({ id: d.fallbackName, name: d.fallbackName, description: d.description, categorySlug: undefined, image: currentFestival.categoryFallbackImage }))} />
