@@ -199,8 +199,30 @@ export function Header() {
               <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Categories</Link>
               <Link to="/orders" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Orders</Link>
               <Link to="/wishlist" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Wishlist</Link>
-              <Link to="/kirana-essentials" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">About Us</Link>
-              <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Contact</Link>
+
+              {user ? (
+                <div className="mt-2 border-t border-[#e6eadf] pt-3">
+                  <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#6c7a68]">Account</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      signOut();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full rounded-md px-2 py-2 text-left text-base font-medium text-[#173522] hover:bg-[#f7f3ea]"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/auth"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="mt-2 rounded-md bg-[#176B3A] px-3 py-2.5 text-center text-base font-semibold text-white shadow-sm hover:bg-[#145a32]"
+                >
+                  Sign in
+                </Link>
+              )}
             </nav>
           </div>
         </div>,
