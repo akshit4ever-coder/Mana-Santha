@@ -57,7 +57,7 @@ export function Header() {
       <div className="container mx-auto px-4 md:hidden">
         <div className="flex h-12 items-center justify-between gap-2 py-2">
           <Link to="/" className="flex min-w-0 items-center gap-2.5">
-            <img src={LogoIcon} alt="Mana Santa logo" className="h-11 w-11 object-contain" />
+            <img src={LogoIcon} alt="Mana Santa logo" className="h-11 w-11 object-contain rounded-lg" />
             <span className="truncate text-lg font-bold text-[#173522]">మన సంత</span>
           </Link>
 
@@ -90,12 +90,12 @@ export function Header() {
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-17 w-17 items-center justify-center rounded-lg bg-transparent p-0">
-              <img src={LogoIcon} alt="Mana Santa logo" className="h-[3.6rem] w-[3.6rem] object-contain" />
+              <img src={LogoIcon} alt="Mana Santa logo" className="h-[3.6rem] w-[3.6rem] object-contain rounded-lg" />
             </div>
           </Link>
 
           <div className="hidden sm:block">
-            <img src={TitleImg} alt="Mana Santa" className="h-12 object-contain" />
+            <img src={TitleImg} alt="Mana Santa" className="h-12 object-contain rounded-lg" />
           </div>
         </div>
 
@@ -180,7 +180,7 @@ export function Header() {
           >
             <div className="flex items-center justify-between border-b border-[#e6eadf] p-4">
               <div className="flex items-center gap-2">
-                <img src={LogoIcon} alt="Mana Santa" className="h-13 w-13 object-contain" />
+                <img src={LogoIcon} alt="Mana Santa" className="h-13 w-13 object-contain rounded-lg" />
                 <div className="font-semibold text-[#173522]">మన సంత</div>
               </div>
               <button
