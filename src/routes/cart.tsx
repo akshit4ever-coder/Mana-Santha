@@ -24,18 +24,6 @@ function CartPage() {
   const deliveryFee = subtotal > 499 || subtotal === 0 ? 0 : 29;
   const total = subtotal + deliveryFee;
 
-  if (!user) {
-    return (
-      <div className="min-h-screen"><Header />
-        <div className="container mx-auto px-4 py-20 text-center">
-          <ShoppingBag className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <h1 className="text-2xl font-bold">Please sign in to view your cart</h1>
-          <Button asChild className="mt-6 rounded-full"><Link to="/auth">Sign in</Link></Button>
-        </div><Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background"><Header />
       <main className="container mx-auto px-4 py-6">
@@ -91,7 +79,7 @@ function CartPage() {
                 </div>
                 <div className="my-4 border-t" />
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span>{formatINR(total)}</span></div>
-                <Button asChild size="lg" className="mt-4 w-full rounded-full"><Link to="/checkout">Proceed to Checkout</Link></Button>
+                <Button asChild size="lg" className="mt-4 w-full rounded-full"><Link to={user ? "/checkout" : "/auth"} search={user ? undefined : { redirect: "/checkout" }}>Proceed to Checkout</Link></Button>
               </div>
             </aside>
           </div>

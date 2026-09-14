@@ -9,6 +9,7 @@ export type OrderNotificationPayload = {
   deliveryDate?: string | null;
   orderItems: Array<{
     name: string;
+    size?: string;
     quantity: number;
     price: number;
     subtotal: number;
@@ -87,7 +88,10 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
     .map(
       (item) => `
         <tr>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9;">${item.name}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9;">
+            <div style="font-weight: 600; margin-bottom: 4px;">${item.name}</div>
+            ${item.size ? `<div style="font-size: 12px; color: #64748b;">${item.size}</div>` : ""}
+          </td>
           <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: center;">${item.quantity}</td>
           <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">${formatMoney(item.price)}</td>
           <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">${formatMoney(item.subtotal)}</td>
@@ -150,6 +154,10 @@ export async function sendOrderNotificationEmail(payload: OrderNotificationPaylo
                 <td style="padding: 10px 0; color:#374151;">${payload.deliveryDate ? new Date(payload.deliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not available'}</td>
               </tr>
               <tr>
+                <td style="padding: 10px 0; font-weight: 700; color:#111827;">Total Quantity</td>
+                <td style="padding: 10px 0; color:#374151; font-weight: 700;">${payload.quantity ?? 0}</td>
+              </tr>
+              <tr>
                 <td style="padding: 10px 0; font-weight: 700; color:#111827;">Total</td>
                 <td style="padding: 10px 0; color:#374151; font-weight: 700;">${formatMoney(payload.totalAmount)}</td>
               </tr>
@@ -193,11 +201,12 @@ Delivery Address: ${payload.deliveryAddress}
 Payment Method: ${payload.paymentMethod}
 Order Time: ${new Date(payload.orderTime).toLocaleString('en-IN')}
 Delivery Date: ${payload.deliveryDate ? new Date(payload.deliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not available'}
+Total Quantity: ${payload.quantity ?? 0}
 Total: ${formatMoney(payload.totalAmount)}
 
 Products:
 ${payload.orderItems
-  .map((item) => `${item.name} x ${item.quantity} - ${formatMoney(item.subtotal)}`)
+  .map((item) => `${item.name}${item.size ? ` — ${item.size}` : ""} × ${item.quantity} — ${formatMoney(item.subtotal)}`)
   .join('\n')}
       `,
     });

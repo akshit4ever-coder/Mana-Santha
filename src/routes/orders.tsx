@@ -38,6 +38,32 @@ function formatDisplayDate(value: string | null | undefined) {
   });
 }
 
+function getOrderTotalQuantity(items: any[] = []) {
+  return (items || []).reduce((sum: number, item: any) => sum + Number(item?.quantity || 0), 0);
+}
+
+function getOrderItemSizeLabel(item: any) {
+  const sizePieces = [
+    item?.variant_name,
+    item?.unit,
+    item?.variant_unit,
+    item?.weight,
+    item?.size,
+  ].filter(Boolean);
+
+  if (sizePieces.length === 0) return "";
+  return sizePieces[0];
+}
+
+function formatOrderItemSummary(item: any) {
+  const sizeLabel = getOrderItemSizeLabel(item);
+  const quantity = Number(item?.quantity || 0);
+  const unitPrice = Number(item?.price || 0);
+  const subtotal = Number(item?.subtotal || unitPrice * quantity || 0);
+
+  return `${item?.name || "Product"}${sizeLabel ? ` — ${sizeLabel}` : ""} × ${quantity} — ${formatINR(unitPrice)} each — ${formatINR(subtotal)}`;
+}
+
 function OrdersPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -273,16 +299,24 @@ function OrdersPage() {
                         {o.order_items?.slice(0, 4).map((it: any) => (
                           <div key={it.id} className="flex items-center gap-2 rounded-lg border bg-secondary/40 px-2 py-1 text-xs">
                             <img src={it.image_url ?? ""} alt="" className="h-8 w-8 rounded object-cover" />
-                            <span className="line-clamp-1 max-w-40">{it.name}</span>
-                            <span className="text-muted-foreground">× {it.quantity}</span>
+                            <div className="min-w-0">
+                              <div className="line-clamp-1 max-w-40 font-medium">{it.name}</div>
+                              <div className="text-muted-foreground">
+                                {getOrderItemSizeLabel(it) ? `${getOrderItemSizeLabel(it)} × ${it.quantity}` : `Qty ${it.quantity}`}
+                              </div>
+                            </div>
                           </div>
                         ))}
                         {o.order_items?.length > 4 && (<div className="rounded-lg bg-secondary px-2 py-1 text-xs">+{o.order_items.length - 4} more</div>)}
+                        <div className="w-full text-[11px] text-muted-foreground">
+                          Total quantity: <span className="font-medium text-foreground">{getOrderTotalQuantity(o.order_items)}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground">Total</div>
                       <div className="text-xl font-bold">{formatINR(o.total)}</div>
+                      <div className="text-xs text-muted-foreground">{getOrderTotalQuantity(o.order_items)} qty</div>
                       <div className="text-xs text-muted-foreground">{o.payment_method === "cod" ? "Cash on Delivery" : "Paid online"}</div>
 
                       <div className="mt-3 flex flex-col gap-2">
@@ -438,7 +472,12 @@ function OrdersPage() {
                     <tbody>
                       {billOrder.lineItems.map((item: any) => (
                         <tr key={item.id || item.name} className="border-t">
-                          <td className="px-2 py-2 sm:px-3">{item.name}</td>
+                          <td className="px-2 py-2 sm:px-3">
+                            <div className="font-medium">{item.name}</div>
+                            {getOrderItemSizeLabel(item) && (
+                              <div className="text-[10px] text-muted-foreground">{getOrderItemSizeLabel(item)}</div>
+                            )}
+                          </td>
                           <td className="px-2 py-2 text-center sm:px-3">{item.quantity}</td>
                           <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.price)}</td>
                           <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.subtotal || Number(item.price || 0) * Number(item.quantity || 0))}</td>

@@ -25,6 +25,12 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const redirectPath = (() => {
+    if (typeof window === "undefined") return "/";
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+    return redirect && redirect.startsWith("/") ? redirect : "/";
+  })();
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -45,11 +51,10 @@ function AuthPage() {
   // OTP removed — password-only login
 
   useEffect(() => {
-    if (user) {
-      // Immediate navigate to home page on authentication success
+    if (user && !loading && !window.location.search.includes("redirect=")) {
       navigate({ to: "/" });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   const resetForm = () => {
     setLoginIdentifier("");
@@ -77,9 +82,15 @@ function AuthPage() {
     try {
       setRememberMePreference(rememberMe);
       resetSupabaseClient(rememberMe);
-      await signInWithIdentifierAndPassword(loginIdentifier, loginPassword);
+      const result = await signInWithIdentifierAndPassword(loginIdentifier, loginPassword);
+      try {
+        const { mergeGuestCartIntoUserCart } = await import("@/lib/queries");
+        await mergeGuestCartIntoUserCart(result.user?.id ?? "");
+      } catch (mergeError) {
+        console.warn("Guest cart merge failed after sign-in:", mergeError);
+      }
       toast.success("Welcome back! 🎉");
-      navigate({ to: "/" });
+      navigate({ to: redirectPath });
     } catch (error: any) {
       toast.error(error.message || "Invalid login credentials");
     } finally {
@@ -110,13 +121,19 @@ function AuthPage() {
 
     setLoading(true);
     try {
-      await registerNewUser({
+      const result = await registerNewUser({
         fullName: regFullName,
         phone: regPhone,
         password: regPassword,
       });
+      try {
+        const { mergeGuestCartIntoUserCart } = await import("@/lib/queries");
+        await mergeGuestCartIntoUserCart(result.user?.id ?? "");
+      } catch (mergeError) {
+        console.warn("Guest cart merge failed after sign-up:", mergeError);
+      }
       toast.success("Account created successfully! Welcome 🎉");
-      navigate({ to: "/" });
+      navigate({ to: redirectPath });
     } catch (error: any) {
       toast.error(error.message || "Registration failed");
     } finally {

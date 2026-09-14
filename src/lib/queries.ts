@@ -99,15 +99,157 @@ function isMissingTableError(error: unknown) {
   return typeof message === "string" && message.includes("Could not find the table");
 }
 
+export const GUEST_CART_KEY = "mana_santha_guest_cart";
+
+export function getGuestCartItems() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(GUEST_CART_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item) => item && item.product_id) : [];
+  } catch (error) {
+    console.warn("Failed to read guest cart:", error);
+    return [];
+  }
+}
+
+export function writeGuestCartItems(items: any[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+}
+
+export async function mergeGuestCartIntoUserCart(userId: string) {
+  const guestItems = getGuestCartItems();
+  if (!guestItems.length) return 0;
+
+  const productIds = [...new Set(guestItems.map((item) => item.product_id).filter(Boolean))];
+  let productMap = new Map<string, any>();
+
+  if (productIds.length > 0) {
+    const { data: products, error } = await supabase
+      .from("products")
+      .select("id, name, slug, image_url, brand, price, unit, weight, max_qty")
+      .in("id", productIds);
+
+    if (error) throw error;
+    for (const product of products ?? []) {
+      productMap.set(product.id, product);
+    }
+  }
+
+  let mergedCount = 0;
+
+  for (const item of guestItems) {
+    const productId = item.product_id;
+    const variantId = item.variant_id ?? null;
+    const quantityToAdd = Number(item.quantity ?? 0);
+    if (!productId || quantityToAdd <= 0) continue;
+
+    let existingQuery = supabase
+      .from("cart_items")
+      .select("id, quantity")
+      .eq("user_id", userId)
+      .eq("product_id", productId);
+
+    if (variantId) {
+      existingQuery = existingQuery.eq("variant_id", variantId);
+    } else {
+      existingQuery = existingQuery.is("variant_id", null);
+    }
+
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+    if (existingError) {
+      if (isMissingTableError(existingError)) {
+        throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
+      }
+      throw existingError;
+    }
+
+    const defaultProduct = productMap.get(productId);
+    const insertPayload: any = {
+      user_id: userId,
+      product_id: productId,
+      quantity: quantityToAdd,
+      variant_id: variantId ?? null,
+      variant_name: item.variant_name ?? null,
+      variant_price: item.variant_price ?? defaultProduct?.price ?? null,
+      variant_image_url: item.variant_image_url ?? defaultProduct?.image_url ?? null,
+      variant_unit: item.variant_unit ?? defaultProduct?.unit ?? defaultProduct?.weight ?? null,
+      variant_max_qty: item.variant_max_qty ?? defaultProduct?.max_qty ?? null,
+    };
+
+    if (existing) {
+      const nextQuantity = Number(existing.quantity ?? 0) + quantityToAdd;
+      const { error: updateError } = await supabase
+        .from("cart_items")
+        .update({ quantity: nextQuantity })
+        .eq("id", existing.id)
+        .eq("user_id", userId);
+      if (updateError) {
+        if (isMissingTableError(updateError)) {
+          throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
+        }
+        throw updateError;
+      }
+    } else {
+      const { error: insertError } = await supabase.from("cart_items").insert(insertPayload);
+      if (insertError) {
+        if (isMissingTableError(insertError)) {
+          throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
+        }
+        throw insertError;
+      }
+    }
+
+    mergedCount += 1;
+  }
+
+  writeGuestCartItems([]);
+  return mergedCount;
+}
+
 export const useCart = (userId?: string) =>
   useQuery({
-    queryKey: ["cart", userId],
-    enabled: !!userId,
+    queryKey: ["cart", userId ?? "guest"],
     queryFn: async () => {
+      if (!userId) {
+        const guestItems = getGuestCartItems();
+        if (guestItems.length === 0) return [];
+
+        const productIds = [...new Set(guestItems.map((item) => item.product_id).filter(Boolean))];
+        let productMap = new Map<string, any>();
+
+        if (productIds.length > 0) {
+          const { data, error } = await supabase
+            .from("products")
+            .select("id, name, slug, image_url, brand, price, unit, weight, max_qty")
+            .in("id", productIds);
+
+          if (error) throw error;
+          for (const product of data ?? []) {
+            productMap.set(product.id, product);
+          }
+        }
+
+        return guestItems.map((item: any) => {
+          const product = productMap.get(item.product_id);
+          return {
+            ...item,
+            quantity: Number(item.quantity ?? 0),
+            products: product ?? null,
+            variant_price: item.variant_price ?? product?.price ?? null,
+            variant_image_url: item.variant_image_url ?? product?.image_url ?? null,
+            variant_unit: item.variant_unit ?? product?.unit ?? product?.weight ?? null,
+            variant_max_qty: item.variant_max_qty ?? product?.max_qty ?? null,
+          };
+        });
+      }
+
       const { data, error } = await supabase
         .from("cart_items")
         .select("*, products(*)")
-        .eq("user_id", userId!);
+        .eq("user_id", userId);
       if (error) {
         if (isMissingTableError(error)) {
           console.warn("Supabase cart_items table missing; returning empty cart.", error.message);
@@ -144,6 +286,35 @@ export function useAddToCart(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ productId, quantity = 1, variant }: { productId: string; quantity?: number; variant?: any }) => {
+      if (!userId) {
+        const guestItems = getGuestCartItems();
+        const itemKey = `${productId}:${variant?.id ?? "default"}`;
+        const existingIndex = guestItems.findIndex((item) => item.id === itemKey || (item.product_id === productId && (variant ? item.variant_id === variant.id : item.variant_id == null)));
+
+        const nextItems = [...guestItems];
+        if (existingIndex >= 0) {
+          nextItems[existingIndex] = {
+            ...nextItems[existingIndex],
+            quantity: Number(nextItems[existingIndex].quantity ?? 0) + Number(quantity ?? 0),
+          };
+        } else {
+          nextItems.push({
+            id: itemKey,
+            product_id: productId,
+            variant_id: variant?.id ?? null,
+            quantity,
+            variant_name: variant?.name ?? null,
+            variant_price: variant?.price ?? null,
+            variant_image_url: variant?.image_url ?? null,
+            variant_unit: variant?.unit ?? null,
+            variant_max_qty: variant?.max_qty ?? null,
+          });
+        }
+
+        writeGuestCartItems(nextItems);
+        return;
+      }
+
       const authUser = await getAuthenticatedCartUser();
       const resolvedUserId = userId ?? authUser.id;
 
@@ -206,7 +377,7 @@ export function useAddToCart(userId?: string) {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cart", userId] });
+      qc.invalidateQueries({ queryKey: ["cart", userId ?? "guest"] });
       toast.success("Added to cart");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -217,6 +388,15 @@ export function useUpdateCartQty(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, quantity }: { id: string; quantity: number }) => {
+      if (!userId) {
+        const guestItems = getGuestCartItems();
+        const nextItems = guestItems
+          .map((item) => (item.id === id ? { ...item, quantity: Math.max(0, Number(quantity)) } : item))
+          .filter((item) => Number(item.quantity ?? 0) > 0);
+        writeGuestCartItems(nextItems);
+        return;
+      }
+
       const authUser = await getAuthenticatedCartUser();
       const resolvedUserId = userId ?? authUser.id;
 
@@ -242,7 +422,7 @@ export function useUpdateCartQty(userId?: string) {
         }
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cart", userId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cart", userId ?? "guest"] }),
   });
 }
 
@@ -250,6 +430,12 @@ export function useRemoveCartItem(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!userId) {
+        const guestItems = getGuestCartItems().filter((item) => item.id !== id);
+        writeGuestCartItems(guestItems);
+        return;
+      }
+
       const authUser = await getAuthenticatedCartUser();
       const resolvedUserId = userId ?? authUser.id;
 
@@ -265,7 +451,7 @@ export function useRemoveCartItem(userId?: string) {
         throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cart", userId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cart", userId ?? "guest"] }),
   });
 }
 

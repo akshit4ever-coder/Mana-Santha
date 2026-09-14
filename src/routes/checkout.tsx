@@ -712,6 +712,12 @@ function Checkout() {
     return () => { mounted = false; };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      navigate({ to: "/auth", search: { redirect: "/checkout" } as any });
+    }
+  }, [user, navigate]);
+
   const items: any[] = (cart ?? []) as any[];
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
   const deliveryFee = subtotal >= 499 ? 0 : 29;
@@ -727,7 +733,7 @@ function Checkout() {
     return nextDate.toISOString();
   };
 
-  if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please <Link to="/auth" className="text-primary underline">sign in</Link>.</div></div>);
+  if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Redirecting to sign in…</div></div>);
   if (items.length === 0) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Your cart is empty. <Link to="/" className="text-primary underline">Shop now</Link>.</div></div>);
 
   const placeOrder = async (e: React.FormEvent) => {
@@ -883,12 +889,17 @@ function Checkout() {
           customerEmail: user.email || "",
           deliveryAddress: [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean).join(", "),
           deliveryDate: deliveryDate,
-          orderItems: items.map((item) => ({
-            name: item.products?.name || "Product",
-            quantity: item.quantity,
-            price: Number(item.variant_price ?? item.products?.price ?? 0),
-            subtotal: Number((item.variant_price ?? item.products?.price ?? 0) * item.quantity),
-          })),
+          orderItems: items.map((item) => {
+            const unitPrice = Number(item.variant_price ?? item.products?.price ?? 0);
+            const sizeLabel = [item.variant_name, item.variant_unit ?? item.products?.unit ?? item.products?.weight].filter(Boolean).join(" ").trim();
+            return {
+              name: item.products?.name || "Product",
+              size: sizeLabel || undefined,
+              quantity: item.quantity,
+              price: unitPrice,
+              subtotal: Number(unitPrice * item.quantity),
+            };
+          }),
           quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
           totalAmount: total,
           paymentMethod: "Cash on Delivery",

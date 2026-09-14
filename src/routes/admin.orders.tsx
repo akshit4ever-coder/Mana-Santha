@@ -55,6 +55,23 @@ function formatDisplayDate(value: string | null | undefined) {
   });
 }
 
+function getOrderTotalQuantity(items: any[] = []) {
+  return (items || []).reduce((sum: number, item: any) => sum + Number(item?.quantity || 0), 0);
+}
+
+function getOrderItemSizeLabel(item: any) {
+  const sizePieces = [
+    item?.variant_name,
+    item?.unit,
+    item?.variant_unit,
+    item?.weight,
+    item?.size,
+  ].filter(Boolean);
+
+  if (sizePieces.length === 0) return "";
+  return sizePieces[0];
+}
+
 function getAllowedStatuses(currentStatus: string) {
   const value = String(currentStatus || "").trim().toLowerCase();
   if (!value) return STATUSES;
@@ -83,7 +100,7 @@ function AdminOrders() {
   const { data: orders } = useQuery({
     queryKey: ["admin-orders", filter],
     queryFn: async () => {
-      let query = supabase.from("orders").select("*");
+      let query = supabase.from("orders").select("*, order_items(*)");
 
       if (filter === "today") {
         const startOfToday = new Date();
@@ -98,7 +115,10 @@ function AdminOrders() {
       const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((order: any) => ({
+        ...order,
+        order_items: Array.isArray(order.order_items) ? order.order_items : [],
+      }));
     },
   });
 
@@ -260,7 +280,20 @@ function AdminOrders() {
                       <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">Reason: {o.cancellation_reason}</div>
                     )}
                   </TableCell>
-                  <TableCell>{o.order_items?.length ?? 0}</TableCell>
+                  <TableCell className="text-sm">
+                    <div className="font-medium">{(o.order_items ?? []).length} items</div>
+                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                      {(o.order_items ?? []).slice(0, 3).map((item: any) => (
+                        <div key={item.id || `${item.name}-${item.quantity}`}>
+                          {item.name}{getOrderItemSizeLabel(item) ? ` — ${getOrderItemSizeLabel(item)}` : ""} × {item.quantity}
+                        </div>
+                      ))}
+                      {(o.order_items ?? []).length > 3 && (
+                        <div>+{(o.order_items ?? []).length - 3} more</div>
+                      )}
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{getOrderTotalQuantity(o.order_items)} qty</div>
+                  </TableCell>
                   <TableCell className="font-semibold">{formatINR(o.total)}</TableCell>
                   <TableCell className="text-sm uppercase">{o.payment_method}</TableCell>
                   <TableCell>
@@ -435,7 +468,12 @@ function AdminOrders() {
                     <tbody>
                       {billOrder.lineItems.map((item: any) => (
                         <tr key={item.id || item.name} className="border-t">
-                          <td className="px-2 py-2 sm:px-3">{item.name}</td>
+                          <td className="px-2 py-2 sm:px-3">
+                            <div className="font-medium">{item.name}</div>
+                            {getOrderItemSizeLabel(item) && (
+                              <div className="text-[10px] text-muted-foreground">{getOrderItemSizeLabel(item)}</div>
+                            )}
+                          </td>
                           <td className="px-2 py-2 text-center sm:px-3">{item.quantity}</td>
                           <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.price)}</td>
                           <td className="px-2 py-2 text-right sm:px-3">{formatINR(item.subtotal || Number(item.price || 0) * Number(item.quantity || 0))}</td>
