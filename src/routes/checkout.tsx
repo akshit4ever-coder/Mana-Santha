@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
+import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
 import { toast } from "sonner";
 import { Loader2, MapPin, Wallet } from "lucide-react";
 import { STORE_LAT, STORE_LNG, STORE_LOCATION, DELIVERY_RADIUS_KM } from "@/lib/config";
@@ -714,6 +715,7 @@ function Checkout() {
 
   useEffect(() => {
     if (!user) {
+      toast.info("Please sign in or log in to place your order.");
       navigate({ to: "/auth", search: { redirect: "/checkout" } as any });
     }
   }, [user, navigate]);
@@ -722,6 +724,7 @@ function Checkout() {
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
   const deliveryFee = subtotal >= 499 ? 0 : 29;
   const total = subtotal + deliveryFee;
+  const unavailableItems = items.filter((item) => !isProductAvailable(item) || Number(item.quantity ?? 0) > Number(item.variant_stock ?? item.products?.stock ?? 0));
 
   const getExpectedDeliveryDate = (date = new Date()) => {
     const nextDate = new Date(date);
@@ -733,8 +736,20 @@ function Checkout() {
     return nextDate.toISOString();
   };
 
-  if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Redirecting to sign in…</div></div>);
+  if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please sign in or log in to place your order.</div></div>);
   if (items.length === 0) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Your cart is empty. <Link to="/" className="text-primary underline">Shop now</Link>.</div></div>);
+  if (unavailableItems.length > 0) {
+    return (
+      <div className="min-h-screen bg-background"><Header />
+        <main className="container mx-auto px-4 py-20 text-center">
+          <h1 className="text-2xl font-bold">Some items in your cart are no longer available.</h1>
+          <p className="mt-2 text-muted-foreground">Please review your cart before placing your order.</p>
+          <Button asChild className="mt-6 rounded-full"><Link to="/cart">Review Cart</Link></Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const placeOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -762,20 +777,22 @@ function Checkout() {
     try {
       const { data: currentProducts } = await supabase
         .from("products")
-        .select("id, stock")
+        .select("id, stock, status, is_active")
         .in("id", items.map((i) => i.product_id));
 
       // Fetch variant stock for items that have a variant selected
       const variantIds = items.map((i) => i.variant_id).filter(Boolean);
-      const { data: currentVariants } = variantIds.length > 0 ? await (supabase as any).from("product_variants").select("id, stock").in("id", variantIds) : { data: [] };
+      const { data: currentVariants } = variantIds.length > 0 ? await (supabase as any).from("product_variants").select("id, stock, status, is_active, max_qty").in("id", variantIds) : { data: [] };
 
       const insufficientStock = items.find((item) => {
+        const product = currentProducts?.find((p: any) => p.id === item.product_id);
+
         if (item.variant_id) {
           const variant = currentVariants?.find((v: any) => v.id === item.variant_id);
-          return !variant || variant.stock < item.quantity;
+          return !variant || !product || !isVariantAvailable(product, variant) || Number(variant.stock ?? 0) < Number(item.quantity ?? 0);
         }
-        const product = currentProducts?.find((p: any) => p.id === item.product_id);
-        return !product || product.stock < item.quantity;
+
+        return !product || !isProductAvailable(product) || Number(product.stock ?? 0) < Number(item.quantity ?? 0);
       });
 
       if (insufficientStock) {

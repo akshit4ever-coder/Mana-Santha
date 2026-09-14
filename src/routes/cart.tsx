@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { Header } from "@/components/Layout/Header";
 import { Footer } from "@/components/Layout/Footer";
@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { useCart, useRemoveCartItem, useUpdateCartQty } from "@/lib/queries";
 import { formatINR } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
+import { isProductAvailable } from "@/lib/product-availability";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Your Cart — Mana Santa" }, { name: "description", content: "Review your cart and proceed to checkout." }] }),
@@ -18,16 +20,32 @@ function CartPage() {
   const { data: cart } = useCart(user?.id);
   const upd = useUpdateCartQty(user?.id);
   const del = useRemoveCartItem(user?.id);
+  const navigate = useNavigate();
 
   const items = cart ?? [];
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
   const deliveryFee = subtotal > 499 || subtotal === 0 ? 0 : 29;
   const total = subtotal + deliveryFee;
+  const unavailableItems = items.filter((item) => !isProductAvailable(item) || Number(item.quantity ?? 0) > Number(item.variant_stock ?? item.products?.stock ?? 0));
+
+  const handleCheckoutClick = () => {
+    if (!user) {
+      toast.info("Please sign in or log in to place your order.");
+      navigate({ to: "/auth", search: { redirect: "/checkout" } as any });
+      return;
+    }
+    navigate({ to: "/checkout" });
+  };
 
   return (
     <div className="min-h-screen bg-background"><Header />
       <main className="container mx-auto px-4 py-6">
         <h1 className="mb-6 text-2xl font-bold md:text-3xl">Your Cart</h1>
+        {unavailableItems.length > 0 && (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            Some items in your cart are no longer available. Please review your cart.
+          </div>
+        )}
         {items.length === 0 ? (
           <div className="rounded-xl border bg-card p-16 text-center shadow-card">
             <ShoppingBag className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -50,6 +68,9 @@ function CartPage() {
                       e.currentTarget.src = PLACEHOLDER_IMAGE;
                     }}
                   />
+                  {!isProductAvailable(i) && (
+                    <div className="absolute left-2 top-2 rounded-full bg-destructive px-2 py-1 text-[10px] font-semibold text-white">Out of stock</div>
+                  )}
                   <div className="flex flex-1 flex-col">
                     <div className="text-xs font-medium uppercase text-muted-foreground">{i.products?.brand}</div>
                     <Link to="/product/$slug" params={{ slug: i.products?.slug ?? "" }} className="font-semibold leading-tight hover:text-primary">{i.products?.name}</Link>
@@ -79,7 +100,7 @@ function CartPage() {
                 </div>
                 <div className="my-4 border-t" />
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span>{formatINR(total)}</span></div>
-                <Button asChild size="lg" className="mt-4 w-full rounded-full"><Link to={user ? "/checkout" : "/auth"} search={user ? undefined : { redirect: "/checkout" }}>Proceed to Checkout</Link></Button>
+                <Button size="lg" className="mt-4 w-full rounded-full" disabled={unavailableItems.length > 0} onClick={handleCheckoutClick}>Proceed to Checkout</Button>
               </div>
             </aside>
           </div>

@@ -10,6 +10,7 @@ import { useAddToCart, useCart, useProduct, useProducts, useToggleWishlist, useU
 import { formatINR, discountPct } from "@/lib/format";
 import { ProductCard } from "@/components/products/ProductCard";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
+import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
 
 export const Route = createFileRoute("/product/$slug")({
   head: ({ params }) => ({
@@ -64,6 +65,7 @@ function ProductPage() {
   }, [selectedVariant, product]);
 
   const pct = useMemo(() => discountPct(displayMrp, displayPrice), [displayMrp, displayPrice]);
+  const isAvailable = selectedVariant ? isVariantAvailable(product, selectedVariant) : isProductAvailable(product);
 
   const item = cart?.find((c) => c.product_id === product?.id && (selectedVariant ? c.variant_id === selectedVariant.id : c.variant_id == null));
   const isWish = wl?.some((w) => w.product_id === product?.id);
@@ -97,13 +99,17 @@ function ProductPage() {
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{product.brand}</div>
             <h1 className="mt-1 text-3xl font-bold leading-tight">{product.name}</h1>
-            <div className="mt-1 text-sm text-muted-foreground">{selectedVariant?.unit ?? selectedVariant?.quantity_value ? `${selectedVariant.quantity_value ?? ''} ${selectedVariant.unit ?? ''}`.trim() : product.weight ?? product.unit}</div>
 
             <div className="mt-4 flex items-end gap-3">
               <div className="text-3xl font-extrabold text-primary">{formatINR(displayPrice)}</div>
               {pct > 0 && (<><div className="text-lg text-muted-foreground line-through">{formatINR(displayMrp)}</div><div className="text-sm font-semibold text-success">Save {pct}%</div></>)}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</div>
+            {!isAvailable && (
+              <div className="mt-3 inline-flex rounded-full bg-destructive/10 px-3 py-1 text-sm font-semibold text-destructive">
+                Out of Stock
+              </div>
+            )}
 
             {product.description && (<p className="mt-6 text-sm leading-relaxed text-muted-foreground">{product.description}</p>)}
 
@@ -123,12 +129,12 @@ function ProductPage() {
             <div className="mt-6 flex flex-wrap gap-3">
               {item ? (
                 <div className="flex items-center gap-2 rounded-full bg-primary p-1 text-primary-foreground">
-                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" onClick={() => upd.mutate({ id: item.id, quantity: item.quantity - 1 })}><Minus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity - 1 })}><Minus className="h-4 w-4" /></Button>
                   <span className="min-w-10 text-center text-lg font-bold">{item.quantity}</span>
-                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={item.quantity >= (selectedVariant?.max_qty ?? product.max_qty) || item.quantity >= (selectedVariant ? selectedVariant.stock : product.stock)} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity + 1 })}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable || item.quantity >= (selectedVariant?.max_qty ?? product.max_qty) || item.quantity >= (selectedVariant ? selectedVariant.stock : product.stock)} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity + 1 })}><Plus className="h-4 w-4" /></Button>
                 </div>
               ) : (
-                <Button size="lg" disabled={(selectedVariant ? selectedVariant.stock <= 0 : product.stock <= 0) || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} onClick={() => add.mutate({ productId: product.id, variant: selectedVariant ? {
+                <Button size="lg" disabled={!isAvailable || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} onClick={() => add.mutate({ productId: product.id, variant: selectedVariant ? {
                   id: selectedVariant.id,
                   name: selectedVariant.name,
                   price: selectedVariant.selling_price ?? selectedVariant.price,
@@ -137,7 +143,7 @@ function ProductPage() {
                   unit: selectedVariant.unit ?? product.unit,
                   max_qty: selectedVariant.max_qty ?? product.max_qty,
                 } : undefined })} className="rounded-full">
-                  {(selectedVariant ? selectedVariant.stock <= 0 : product.stock <= 0) ? "Out of stock" : "Add to Cart"}
+                  {!isAvailable ? "Out of stock" : "Add to Cart"}
                 </Button>
               )}
               <Button size="lg" variant="outline" onClick={() => wish.mutate(product.id)} className="rounded-full">

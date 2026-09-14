@@ -124,12 +124,14 @@ export async function mergeGuestCartIntoUserCart(userId: string) {
   if (!guestItems.length) return 0;
 
   const productIds = [...new Set(guestItems.map((item) => item.product_id).filter(Boolean))];
-  let productMap = new Map<string, any>();
+  const variantIds = [...new Set(guestItems.map((item) => item.variant_id).filter(Boolean))];
+  const productMap = new Map<string, any>();
+  const variantMap = new Map<string, any>();
 
   if (productIds.length > 0) {
     const { data: products, error } = await supabase
       .from("products")
-      .select("id, name, slug, image_url, brand, price, unit, weight, max_qty")
+      .select("id, name, slug, image_url, brand, price, unit, weight, max_qty, stock")
       .in("id", productIds);
 
     if (error) throw error;
@@ -138,13 +140,59 @@ export async function mergeGuestCartIntoUserCart(userId: string) {
     }
   }
 
+  if (variantIds.length > 0) {
+    const { data: variants, error } = await supabase
+      .from("product_variants")
+      .select("id, product_id, name, stock, max_qty, selling_price, mrp, image_url, unit, quantity_value")
+      .in("id", variantIds);
+
+    if (error) throw error;
+    for (const variant of variants ?? []) {
+      variantMap.set(variant.id, variant);
+    }
+  }
+
+  const { data: existingUserCart, error: existingUserCartError } = await supabase
+    .from("cart_items")
+    .select("id, product_id, variant_id, quantity")
+    .eq("user_id", userId);
+
+  if (existingUserCartError) {
+    if (isMissingTableError(existingUserCartError)) {
+      throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
+    }
+    throw existingUserCartError;
+  }
+
+  const existingByKey = new Map<string, number>();
+  for (const item of existingUserCart ?? []) {
+    const key = `${item.product_id}:${item.variant_id ?? "default"}`;
+    existingByKey.set(key, Number(item.quantity ?? 0));
+  }
+
   let mergedCount = 0;
+  const remainingGuestItems: any[] = [];
 
   for (const item of guestItems) {
     const productId = item.product_id;
     const variantId = item.variant_id ?? null;
     const quantityToAdd = Number(item.quantity ?? 0);
+    const key = `${productId}:${variantId ?? "default"}`;
     if (!productId || quantityToAdd <= 0) continue;
+
+    const baseProduct = productMap.get(productId);
+    const baseVariant = variantId ? variantMap.get(variantId) : null;
+    const stockLimit = Number(baseVariant?.stock ?? baseProduct?.stock ?? 0);
+    const maxPerOrderLimit = Number(baseVariant?.max_qty ?? baseProduct?.max_qty ?? 0);
+    const effectiveLimit = Math.max(0, stockLimit > 0 ? Math.min(stockLimit, maxPerOrderLimit || stockLimit) : maxPerOrderLimit || stockLimit || Number.MAX_SAFE_INTEGER);
+    const currentUserQty = existingByKey.get(key) ?? 0;
+    const availableCapacity = effectiveLimit > 0 ? Math.max(0, effectiveLimit - currentUserQty) : Number.MAX_SAFE_INTEGER;
+    const allowedQuantity = Math.min(quantityToAdd, availableCapacity === Number.MAX_SAFE_INTEGER ? quantityToAdd : availableCapacity);
+
+    if (allowedQuantity <= 0) {
+      remainingGuestItems.push(item);
+      continue;
+    }
 
     let existingQuery = supabase
       .from("cart_items")
@@ -166,24 +214,23 @@ export async function mergeGuestCartIntoUserCart(userId: string) {
       throw existingError;
     }
 
-    const defaultProduct = productMap.get(productId);
+    const mergedQuantity = Number(existing?.quantity ?? 0) + allowedQuantity;
     const insertPayload: any = {
       user_id: userId,
       product_id: productId,
-      quantity: quantityToAdd,
+      quantity: allowedQuantity,
       variant_id: variantId ?? null,
       variant_name: item.variant_name ?? null,
-      variant_price: item.variant_price ?? defaultProduct?.price ?? null,
-      variant_image_url: item.variant_image_url ?? defaultProduct?.image_url ?? null,
-      variant_unit: item.variant_unit ?? defaultProduct?.unit ?? defaultProduct?.weight ?? null,
-      variant_max_qty: item.variant_max_qty ?? defaultProduct?.max_qty ?? null,
+      variant_price: item.variant_price ?? baseVariant?.selling_price ?? baseProduct?.price ?? null,
+      variant_image_url: item.variant_image_url ?? baseVariant?.image_url ?? baseProduct?.image_url ?? null,
+      variant_unit: item.variant_unit ?? baseVariant?.unit ?? baseProduct?.unit ?? baseProduct?.weight ?? null,
+      variant_max_qty: item.variant_max_qty ?? baseVariant?.max_qty ?? baseProduct?.max_qty ?? null,
     };
 
     if (existing) {
-      const nextQuantity = Number(existing.quantity ?? 0) + quantityToAdd;
       const { error: updateError } = await supabase
         .from("cart_items")
-        .update({ quantity: nextQuantity })
+        .update({ quantity: mergedQuantity })
         .eq("id", existing.id)
         .eq("user_id", userId);
       if (updateError) {
@@ -202,10 +249,13 @@ export async function mergeGuestCartIntoUserCart(userId: string) {
       }
     }
 
+    if (allowedQuantity < quantityToAdd) {
+      remainingGuestItems.push({ ...item, quantity: quantityToAdd - allowedQuantity });
+    }
     mergedCount += 1;
   }
 
-  writeGuestCartItems([]);
+  writeGuestCartItems(remainingGuestItems);
   return mergedCount;
 }
 

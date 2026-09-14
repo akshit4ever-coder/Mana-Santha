@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { useAddToCart, useCart, useUpdateCartQty } from "@/lib/queries";
 import { formatINR, discountPct } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
+import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
 
 export function ProductCard({ product }: { product: any }) {
   const { user } = useAuth();
@@ -21,7 +22,8 @@ export function ProductCard({ product }: { product: any }) {
   const displayPrice = selectedVariant ? Number(selectedVariant.selling_price ?? selectedVariant.price ?? product.price) : Number(product.price);
   const displayMrp = selectedVariant ? Number(selectedVariant.mrp ?? product.mrp) : Number(product.mrp);
   const pct = discountPct(displayMrp, displayPrice);
-  const outOfStock = selectedVariant ? (selectedVariant.stock ?? 0) <= 0 : (product.stock ?? 0) <= 0;
+  const selectedVariantAvailable = selectedVariant ? isVariantAvailable(product, selectedVariant) : isProductAvailable(product);
+  const outOfStock = !isProductAvailable(product);
 
   return (
     <div className="group relative flex h-full min-h-[420px] flex-col overflow-hidden rounded-xl border border-[#edf2ea] bg-card shadow-card transition-all hover:-translate-y-0.5 hover:shadow-glow">
@@ -76,7 +78,7 @@ export function ProductCard({ product }: { product: any }) {
               </Button>
               <span className="min-w-6 text-center text-sm font-bold">{(item as any).quantity}</span>
               <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground"
-                disabled={(((item as any).quantity >= (((item as any)['variant_max_qty'] ?? selectedVariant?.max_qty ?? firstVariant?.max_qty ?? product.max_qty))) || (item as any).quantity >= ((selectedVariant?.stock ?? firstVariant?.stock) ?? product.stock))}
+                disabled={!isProductAvailable(selectedVariant ?? product) || (((item as any).quantity >= (((item as any)['variant_max_qty'] ?? selectedVariant?.max_qty ?? firstVariant?.max_qty ?? product.max_qty))) || (item as any).quantity >= ((selectedVariant?.stock ?? firstVariant?.stock) ?? product.stock))}
                 onClick={() => update.mutate({ id: (item as any).id, quantity: (item as any).quantity + 1 })}>
                 <Plus className="h-3.5 w-3.5" />
               </Button>
@@ -85,7 +87,7 @@ export function ProductCard({ product }: { product: any }) {
             <Button
               size="sm"
               variant="outline"
-              disabled={outOfStock || add.isPending}
+              disabled={!selectedVariantAvailable || add.isPending}
               onClick={() => add.mutate({ productId: product.id, variant: selectedVariant ? {
                 id: selectedVariant.id,
                 name: selectedVariant.name,
