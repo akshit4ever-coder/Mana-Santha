@@ -268,12 +268,14 @@ export const useCart = (userId?: string) =>
         if (guestItems.length === 0) return [];
 
         const productIds = [...new Set(guestItems.map((item) => item.product_id).filter(Boolean))];
-        let productMap = new Map<string, any>();
+        const variantIds = [...new Set(guestItems.map((item) => item.variant_id).filter(Boolean))];
+        const productMap = new Map<string, any>();
+        const variantMap = new Map<string, any>();
 
         if (productIds.length > 0) {
           const { data, error } = await supabase
             .from("products")
-            .select("id, name, slug, image_url, brand, price, unit, weight, max_qty")
+            .select("id, name, slug, image_url, brand, price, unit, weight, max_qty, stock, status, is_active, product_variants(*)")
             .in("id", productIds);
 
           if (error) throw error;
@@ -282,23 +284,39 @@ export const useCart = (userId?: string) =>
           }
         }
 
+        if (variantIds.length > 0) {
+          const { data, error } = await supabase
+            .from("product_variants")
+            .select("id, product_id, name, stock, status, is_active, max_qty, selling_price, mrp, image_url, unit, quantity_value")
+            .in("id", variantIds);
+
+          if (error) throw error;
+          for (const variant of data ?? []) {
+            variantMap.set(variant.id, variant);
+          }
+        }
+
         return guestItems.map((item: any) => {
-          const product = productMap.get(item.product_id);
+          const product = productMap.get(item.product_id) ?? null;
+          const variant = item.variant_id ? variantMap.get(item.variant_id) ?? null : null;
           return {
             ...item,
             quantity: Number(item.quantity ?? 0),
-            products: product ?? null,
-            variant_price: item.variant_price ?? product?.price ?? null,
-            variant_image_url: item.variant_image_url ?? product?.image_url ?? null,
-            variant_unit: item.variant_unit ?? product?.unit ?? product?.weight ?? null,
-            variant_max_qty: item.variant_max_qty ?? product?.max_qty ?? null,
+            products: product,
+            variant,
+            variant_price: item.variant_price ?? variant?.selling_price ?? product?.price ?? null,
+            variant_image_url: item.variant_image_url ?? variant?.image_url ?? product?.image_url ?? null,
+            variant_unit: item.variant_unit ?? variant?.unit ?? product?.unit ?? product?.weight ?? null,
+            variant_max_qty: item.variant_max_qty ?? variant?.max_qty ?? product?.max_qty ?? null,
+            variant_stock: item.variant_stock ?? variant?.stock ?? product?.stock ?? null,
+            variant_name: item.variant_name ?? variant?.name ?? null,
           };
         });
       }
 
-      const { data, error } = await supabase
+      const { data: cartRows, error } = await supabase
         .from("cart_items")
-        .select("*, products(*)")
+        .select("*")
         .eq("user_id", userId);
       if (error) {
         if (isMissingTableError(error)) {
@@ -307,7 +325,77 @@ export const useCart = (userId?: string) =>
         }
         throw error;
       }
-      return data;
+
+      const productIds = [...new Set((cartRows ?? []).map((item) => item.product_id).filter(Boolean))];
+      const variantIds = [...new Set((cartRows ?? []).map((item) => item.variant_id).filter((id): id is string => Boolean(id) && typeof id === "string"))];
+      const productMap = new Map<string, any>();
+      const variantMap = new Map<string, any>();
+      let variantFetchError = false;
+      let variantFetchDetails: any = null;
+
+      if (productIds.length > 0) {
+        const { data: products, error: productsError } = await supabase
+          .from("products")
+          .select("*, product_variants(*)")
+          .in("id", productIds);
+
+        if (productsError) throw productsError;
+        for (const product of products ?? []) {
+          productMap.set(product.id, product);
+        }
+      }
+
+      if (variantIds.length > 0) {
+        console.log("Cart variant fetch ids:", variantIds);
+        const { data: variants, error: variantsError } = await supabase
+          .from("product_variants")
+          .select("*")
+          .in("id", variantIds);
+
+        console.log("Cart variant fetch response:", { data: variants, error: variantsError, count: variants?.length ?? 0, variantIds });
+
+        if (variantsError) {
+          console.error("Cart variant fetch failed:", {
+            variantIds,
+            error: variantsError,
+            message: variantsError.message,
+            details: variantsError.details,
+            hint: variantsError.hint,
+            code: variantsError.code,
+          });
+          variantFetchError = true;
+          variantFetchDetails = variantsError;
+        } else {
+          for (const variant of variants ?? []) {
+            variantMap.set(variant.id, variant);
+          }
+        }
+      }
+
+      return (cartRows ?? []).map((item: any) => {
+        const product = productMap.get(item.product_id) ?? null;
+        const variant = item.variant_id ? variantMap.get(item.variant_id) ?? null : null;
+        const isMissingVariant = Boolean(item.variant_id) && !variant && !variantFetchError;
+
+        if (isMissingVariant) {
+          console.warn("Cart item references a missing variant record:", { cartItemId: item.id, productId: item.product_id, variantId: item.variant_id, requestedIds: variantIds });
+        }
+
+        return {
+          ...item,
+          products: product,
+          variant,
+          variant_fetch_error: variantFetchError,
+          variant_missing: isMissingVariant,
+          variant_price: item.variant_price ?? variant?.selling_price ?? product?.price ?? null,
+          variant_image_url: item.variant_image_url ?? variant?.image_url ?? product?.image_url ?? null,
+          variant_unit: item.variant_unit ?? variant?.unit ?? product?.unit ?? product?.weight ?? null,
+          variant_max_qty: item.variant_max_qty ?? variant?.max_qty ?? product?.max_qty ?? null,
+          variant_stock: item.variant_stock ?? variant?.stock ?? product?.stock ?? null,
+          variant_name: item.variant_name ?? variant?.name ?? null,
+          _variantFetchDetails: variantFetchDetails,
+        };
+      });
     },
   });
 

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/queries";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/UI/dropdown-menu";
 import { useEffect, useState } from "react";
+import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
 
 export function Header() {
   const { user, isAdmin, signOut } = useAuth();
@@ -18,6 +19,7 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const cartCount = cart?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? 0;
+  const cutoffStatus = getOrderCutoffStatus();
 
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Account";
 
@@ -82,6 +84,9 @@ export function Header() {
         <div className="mb-3 flex gap-3 overflow-x-auto">
           <a href="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white">Shop Fresh</a>
           <a href="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</a>
+          <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-900">
+            {cutoffStatus.isAfterCutoff ? "Orders now for tomorrow delivery" : "Order before 7:30 PM for today’s delivery"}
+          </span>
         </div>
       </div>
 
@@ -160,6 +165,9 @@ export function Header() {
           <Link to="/" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Home</Link>
           <Link to="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Shop Fresh</Link>
           <Link to="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</Link>
+          <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-900">
+            {cutoffStatus.isAfterCutoff ? "Orders now for tomorrow delivery" : "Order before 7:30 PM for today’s delivery"}
+          </span>
           <div className="hidden md:flex md:items-center md:gap-3">
 
             {/* <Link to="/shop-fresh" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Categories</Link>

@@ -51,10 +51,10 @@ function AuthPage() {
   // OTP removed — password-only login
 
   useEffect(() => {
-    if (user && !loading && !window.location.search.includes("redirect=")) {
-      navigate({ to: "/" });
+    if (user && !loading) {
+      navigate({ to: redirectPath });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, redirectPath]);
 
   const resetForm = () => {
     setLoginIdentifier("");

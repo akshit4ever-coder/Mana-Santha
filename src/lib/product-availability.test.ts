@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isProductAvailable, isVariantAvailable, normalizeProductStatus } from './product-availability.ts';
+import { getCartItemAvailabilityState, isParentProductAvailable, isProductAvailable, isVariantAvailable, normalizeProductStatus } from './product-availability.ts';
+import { getOrderCutoffStatus } from './delivery-cutoff.ts';
 
 test('normalizeProductStatus lowercases and trims status', () => {
   assert.equal(normalizeProductStatus(' Out of Stock '), 'out of stock');
@@ -50,11 +51,91 @@ test('variant availability uses parent override and variant stock independently'
   assert.equal(isVariantAvailable(productInactive, productInactive.product_variants[0]), false);
 });
 
-test('blank and missing status values are treated as unavailable', () => {
-  assert.equal(isProductAvailable({ stock: 50, status: null }), false);
-  assert.equal(isProductAvailable({ stock: 50, status: '' }), false);
+test('simple product with no variants and active stock remains available', () => {
+  const product = { id: 'p1', stock: 25, status: 'active', is_active: true };
+  assert.equal(isProductAvailable(product), true);
+  assert.equal(isVariantAvailable(product, undefined), true);
+  assert.equal(isVariantAvailable(product, null), true);
+});
+
+test('missing status and is_active are treated as active defaults', () => {
+  assert.equal(isProductAvailable({ stock: 50, status: null, is_active: null }), true);
+  assert.equal(isProductAvailable({ stock: 50, status: '', is_active: null }), true);
+  assert.equal(isParentProductAvailable({ stock: 50, status: null, is_active: null }), true);
+});
+
+test('variant product with no matching variant row is unavailable', () => {
+  const product = {
+    id: 'p2',
+    status: 'active',
+    is_active: true,
+    stock: 10,
+    product_variants: [{ id: 'v1', stock: 5, status: 'active', is_active: true }],
+  };
+
+  assert.equal(isVariantAvailable(product, { id: 'missing', stock: 0 }), false);
+  assert.equal(isVariantAvailable(product, undefined), true);
+});
+
+test('only the out-of-stock variant is flagged when the same product has another active size', () => {
+  const product = {
+    id: 'p3',
+    status: 'active',
+    is_active: true,
+    stock: 10,
+    product_variants: [
+      { id: 'v1', name: '1L', stock: 5, status: 'active', is_active: true },
+      { id: 'v2', name: '2L', stock: 0, status: 'active', is_active: true },
+    ],
+  };
+
+  assert.equal(isVariantAvailable(product, product.product_variants[0]), true);
+  assert.equal(isVariantAvailable(product, product.product_variants[1]), false);
+  assert.equal(isProductAvailable(product), true);
+});
+
+test('blank and missing status values are treated as active defaults when stock is present', () => {
+  assert.equal(isProductAvailable({ stock: 50, status: null }), true);
+  assert.equal(isProductAvailable({ stock: 50, status: '' }), true);
   assert.equal(isProductAvailable({ stock: 50, status: ' ACTIVE ' }), true);
   assert.equal(isProductAvailable({ stock: 50, status: 'inactive' }), false);
   assert.equal(isProductAvailable({ stock: 50, status: 'OUT OF STOCK' }), false);
   assert.equal(isProductAvailable({ stock: 50, status: 'Out of Stock', is_active: true }), false);
+});
+
+test('variant fetch errors do not mark items unavailable, while confirmed missing variants do', () => {
+  const fetchErrorItem = {
+    variant_id: 'v-error',
+    quantity: 2,
+    variant_fetch_error: true,
+    products: { id: 'p-1', stock: 25, status: 'active', is_active: true },
+    variant: null,
+  };
+
+  assert.equal(getCartItemAvailabilityState(fetchErrorItem).isAvailable, false);
+  assert.equal(getCartItemAvailabilityState(fetchErrorItem).hasVariantFetchError, true);
+
+  const missingVariantItem = {
+    variant_id: 'v-missing',
+    quantity: 1,
+    variant_fetch_error: false,
+    variant_missing: true,
+    products: { id: 'p-2', status: 'active', is_active: true, stock: 15, product_variants: [{ id: 'v-else', stock: 10, status: 'active', is_active: true }] },
+    variant: null,
+  };
+
+  assert.equal(getCartItemAvailabilityState(missingVariantItem).isAvailable, false);
+  assert.equal(getCartItemAvailabilityState(missingVariantItem).isMissingVariant, true);
+});
+
+test('delivery cutoff uses IST and flips at 7:30 PM exactly', () => {
+  const beforeCutoff = new Date('2026-09-15T18:45:00+05:30');
+  const afterCutoff = new Date('2026-09-15T19:30:00+05:30');
+  const beforeStatus = getOrderCutoffStatus(beforeCutoff);
+  const afterStatus = getOrderCutoffStatus(afterCutoff);
+
+  assert.equal(beforeStatus.isAfterCutoff, false);
+  assert.equal(beforeStatus.deliveryDate.toISOString().slice(0, 10), '2026-09-15');
+  assert.equal(afterStatus.isAfterCutoff, true);
+  assert.equal(afterStatus.deliveryDate.toISOString().slice(0, 10), '2026-09-16');
 });

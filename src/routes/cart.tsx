@@ -7,8 +7,13 @@ import { useAuth } from "@/lib/auth";
 import { useCart, useRemoveCartItem, useUpdateCartQty } from "@/lib/queries";
 import { formatINR } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
-import { isProductAvailable } from "@/lib/product-availability";
+import { getCartItemAvailabilityState, isProductAvailable } from "@/lib/product-availability";
 import { toast } from "sonner";
+
+function isCartItemAvailable(item: any) {
+  const state = getCartItemAvailabilityState(item);
+  return state.isAvailable;
+}
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Your Cart — Mana Santa" }, { name: "description", content: "Review your cart and proceed to checkout." }] }),
@@ -23,10 +28,14 @@ function CartPage() {
   const navigate = useNavigate();
 
   const items = cart ?? [];
-  const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
+  const fetchErrors = items.filter((item) => item.variant_fetch_error === true);
+  const unavailableItems = items.filter((item) => item.variant_missing === true || item.variant_fetch_error === true || !isCartItemAvailable(item));
+  const subtotal = items.reduce((s, i) => {
+    if (i.variant_missing === true) return s;
+    return s + Number(i.variant_price ?? i.products?.price ?? 0) * Number(i.quantity ?? 0);
+  }, 0);
   const deliveryFee = subtotal > 499 || subtotal === 0 ? 0 : 29;
   const total = subtotal + deliveryFee;
-  const unavailableItems = items.filter((item) => !isProductAvailable(item) || Number(item.quantity ?? 0) > Number(item.variant_stock ?? item.products?.stock ?? 0));
 
   const handleCheckoutClick = () => {
     if (!user) {
@@ -43,7 +52,9 @@ function CartPage() {
         <h1 className="mb-6 text-2xl font-bold md:text-3xl">Your Cart</h1>
         {unavailableItems.length > 0 && (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            Some items in your cart are no longer available. Please review your cart.
+            {fetchErrors.length > 0
+              ? "We couldn’t verify some items in your cart right now. Please try again."
+              : "Some items in your cart are no longer available. Please review your cart."}
           </div>
         )}
         {items.length === 0 ? (
@@ -68,7 +79,7 @@ function CartPage() {
                       e.currentTarget.src = PLACEHOLDER_IMAGE;
                     }}
                   />
-                  {!isProductAvailable(i) && (
+                  {!isCartItemAvailable(i) && (
                     <div className="absolute left-2 top-2 rounded-full bg-destructive px-2 py-1 text-[10px] font-semibold text-white">Out of stock</div>
                   )}
                   <div className="flex flex-1 flex-col">
@@ -79,9 +90,9 @@ function CartPage() {
                     <div className="mt-auto flex items-end justify-between">
                       <div className="text-lg font-bold">{formatINR(Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity)}</div>
                       <div className="flex items-center gap-1 rounded-full border bg-secondary p-0.5">
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={() => upd.mutate({ id: i.id, quantity: i.quantity - 1 })}><Minus className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={!isCartItemAvailable(i)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity - 1 })}><Minus className="h-3.5 w-3.5" /></Button>
                         <span className="min-w-6 text-center text-sm font-bold">{i.quantity}</span>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={i.quantity >= (i.variant_max_qty ?? i.products?.max_qty ?? 20)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity + 1 })}><Plus className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={!isCartItemAvailable(i) || i.quantity >= (i.variant_max_qty ?? i.products?.max_qty ?? 20)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity + 1 })}><Plus className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>
                   </div>

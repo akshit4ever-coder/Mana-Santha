@@ -10,7 +10,8 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
-import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
+import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
+import { getCartItemValidationDetail, isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
 import { toast } from "sonner";
 import { Loader2, MapPin, Wallet } from "lucide-react";
 import { STORE_LAT, STORE_LNG, STORE_LOCATION, DELIVERY_RADIUS_KM } from "@/lib/config";
@@ -724,16 +725,37 @@ function Checkout() {
   const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
   const deliveryFee = subtotal >= 499 ? 0 : 29;
   const total = subtotal + deliveryFee;
-  const unavailableItems = items.filter((item) => !isProductAvailable(item) || Number(item.quantity ?? 0) > Number(item.variant_stock ?? item.products?.stock ?? 0));
+  const validationResults = items.map((item) => ({
+    ...item,
+    validation: getCartItemValidationDetail(item),
+  }));
+  const unavailableItems = validationResults.filter((item) => !item.validation.isAvailable);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.group("Cart validation:");
+    validationResults.forEach((item, index) => {
+      const v = item.validation;
+      console.log(`Item ${index + 1}:`, {
+        cartItemId: v.cartItemId,
+        productId: v.productId,
+        variantId: v.variantId,
+        productName: v.productName,
+        variantName: v.variantName,
+        size: v.size,
+        quantity: v.quantity,
+        productStock: v.productStock,
+        productStatus: v.productStatus,
+        variantStock: v.variantStock,
+        variantIsActive: v.variantIsActive,
+        isAvailable: v.isAvailable,
+        availabilityReason: v.availabilityReason,
+      });
+    });
+    console.groupEnd();
+  }
 
   const getExpectedDeliveryDate = (date = new Date()) => {
-    const nextDate = new Date(date);
-    const isAfterCutoff = nextDate.getHours() >= 20;
-    nextDate.setHours(12, 0, 0, 0);
-    if (isAfterCutoff) {
-      nextDate.setDate(nextDate.getDate() + 1);
-    }
-    return nextDate.toISOString();
+    return getOrderCutoffStatus(date).deliveryDate.toISOString();
   };
 
   if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please sign in or log in to place your order.</div></div>);
@@ -852,7 +874,8 @@ function Checkout() {
         }
       }
 
-      const deliveryDate = getExpectedDeliveryDate();
+      const deliveryStatus = getOrderCutoffStatus();
+      const deliveryDate = deliveryStatus.deliveryDate.toISOString();
       const orderPayload = {
         user_id: supabaseUser.id,
         subtotal,
@@ -863,7 +886,7 @@ function Checkout() {
         status: "pending",
         address_snapshot: addr as any,
         address_id: addressId ?? null,
-        delivery_slot: "same_day",
+        delivery_slot: deliveryStatus.isAfterCutoff ? "next_day" : "same_day",
         delivery_date: deliveryDate,
       };
 
