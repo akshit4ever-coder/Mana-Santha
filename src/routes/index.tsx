@@ -13,8 +13,8 @@ import { Footer } from "@/components/Layout/Footer";
 import { useCategories, useProducts, useShopFreshProducts } from "@/lib/queries";
 
 import { FestivalHero } from "@/components/festival/FestivalHero";
-import GaneshImage from "@/assets/festival/ganesh_image.png";
-import GaneshMobile from "@/assets/festival/ganesh_mobile.png";
+import HeroImage from "@/assets/festival/hero_banner.png";
+import HeroMobile from "@/assets/festival/mobile_hero_image.png";
 import { TrustFeatures } from "@/components/festival/TrustFeatures";
 import { FestivalCategorySlider } from "@/components/festival/FestivalCategorySlider";
 import { FestivalOfferBanner } from "@/components/festival/FestivalOfferBanner";
@@ -428,13 +428,8 @@ function Home() {
 
       <main className="mx-auto w-full max-w-[1500px] px-3 pb-10 sm:px-5 lg:px-6">
         <FestivalHero
-          title="Happy Ganesh Utsav"
-          subtitle="Celebrate new beginnings with fresh essentials from Mana Santa"
-          bannerImage={GaneshImage}
-          mobileBannerImage={GaneshMobile}
-          ctaRoute={heroRoute}
-          ctaLabel="Shop Festival Essentials"
-          badge="GANESH UTSAV"
+          bannerImage={HeroImage}
+          mobileBannerImage={HeroMobile}
         />
 
         <TrustFeatures />

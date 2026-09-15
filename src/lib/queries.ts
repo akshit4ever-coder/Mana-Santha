@@ -296,7 +296,8 @@ export const useCart = (userId?: string) =>
       const { data: cartRows, error } = await supabase
         .from("cart_items")
         .select("*")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .order("id", { ascending: true });
       if (error) {
         if (isMissingTableError(error)) {
           console.warn("Supabase cart_items table missing; returning empty cart.", error.message);
@@ -420,24 +421,38 @@ export function useAddToCart(userId?: string) {
         throw new Error("Session mismatch detected. Please sign in again.");
       }
 
-      let query = supabase
+      // Fetch any existing cart rows for this product for the user,
+      // then match variant in JS. This avoids DB null/string mismatches
+      // where `variant_id` might be stored as null/empty string and prevents
+      // creating duplicate rows when adding from wishlist or other places.
+      const { data: existingRows, error: selectError } = await supabase
         .from("cart_items")
-        .select("id, quantity")
+        .select("id, quantity, variant_id")
         .eq("user_id", authUser.id)
         .eq("product_id", productId);
-      if (variant?.id) {
-        query = query.eq("variant_id", variant.id);
-      } else {
-        query = query.is("variant_id", null);
-      }
-
-      const { data: existing, error: selectError } = await query.maybeSingle();
       if (selectError) {
         if (isMissingTableError(selectError)) {
           throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
         }
         throw selectError;
       }
+      // Find matching existing row by variant (robust to null/empty)
+      let existing: any = null;
+      if (selectError) {
+        if (isMissingTableError(selectError)) {
+          throw new Error("Cart is unavailable because the cart_items table is missing. Run database migrations.");
+        }
+        throw selectError;
+      }
+
+      if (existingRows && existingRows.length > 0) {
+        if (variant?.id) {
+          existing = existingRows.find((r: any) => String(r.variant_id) === String(variant.id));
+        } else {
+          existing = existingRows.find((r: any) => r.variant_id === null || r.variant_id === "" || typeof r.variant_id === "undefined");
+        }
+      }
+
       if (existing) {
         const { error } = await supabase
           .from("cart_items")
@@ -558,7 +573,10 @@ export const useWishlist = (userId?: string) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wishlist_items")
-        .select("*, products(*)")
+        // include product variants so the ProductCard has the necessary
+        // variant information when rendering from the wishlist. This
+        // ensures adding from wishlist preserves variant units (e.g. 250 g)
+        .select("*, products(*, product_variants(*))")
         .eq("user_id", userId!);
       if (error) throw error;
       return data;

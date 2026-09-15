@@ -14,13 +14,13 @@ export function FestivalOfferBanner({
       <div className="relative flex flex-col items-start justify-between gap-5 md:flex-row md:items-center">
         <div className="text-white">
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-100">
-            Ganesh Utsav
+            Special Offers
           </p>
 
-          <h3 className="mt-1 text-2xl font-black sm:text-3xl">Special Offer</h3>
+          <h3 className="mt-1 text-2xl font-black sm:text-3xl">Limited Time Deals</h3>
 
           <p className="mt-1 max-w-2xl text-sm text-white/90 sm:text-base">
-            Special prices on sweets, pooja items & more — bring home the blessings with Mana Santa.
+            Great prices on everyday grocery essentials — save on fresh produce and pantry staples.
           </p>
         </div>
 

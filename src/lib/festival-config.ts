@@ -1,4 +1,4 @@
-import ganeshBanner from "@/assets/festival/ganesh_image.jpeg";
+import heroBanner from "@/assets/festival/hero_banner.png";
 import festivalCategoryPlaceholder from "@/assets/festival/festival-category-placeholder.svg";
 
 export type FestivalCategory = {
@@ -10,11 +10,11 @@ export type FestivalCategory = {
 };
 
 export const currentFestival = {
-  name: "Ganesh Utsav",
+  name: "Mana Santa",
 
-  title: "Happy Ganesh Utsav",
+  title: "Mana Santa",
 
-  bannerImage: ganeshBanner,
+  bannerImage: heroBanner,
 
   categoryFallbackImage: festivalCategoryPlaceholder,
 };
