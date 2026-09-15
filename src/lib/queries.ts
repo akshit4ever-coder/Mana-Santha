@@ -101,13 +101,37 @@ function isMissingTableError(error: unknown) {
 
 export const GUEST_CART_KEY = "mana_santha_guest_cart";
 
+export function normalizeGuestCartItem(item: any) {
+  const productId = item?.product_id ?? item?.productId ?? null;
+  const variantId = item?.variant_id ?? item?.variantId ?? null;
+  const quantity = Number(item?.quantity ?? 0);
+  const normalized = {
+    ...item,
+    id: item?.id ?? `${productId ?? "guest"}:${variantId ?? "default"}`,
+    product_id: productId,
+    variant_id: variantId,
+    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
+    variant_name: item?.variant_name ?? item?.variantName ?? null,
+    variant_price: item?.variant_price ?? item?.variantPrice ?? null,
+    variant_image_url: item?.variant_image_url ?? item?.variantImageUrl ?? null,
+    variant_unit: item?.variant_unit ?? item?.variantUnit ?? null,
+    variant_max_qty: item?.variant_max_qty ?? item?.variantMaxQty ?? null,
+  };
+
+  return normalized;
+}
+
 export function getGuestCartItems() {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(GUEST_CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((item) => item && item.product_id) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => normalizeGuestCartItem(item))
+      .filter((item) => item && item.product_id && Number(item.quantity ?? 0) > 0);
   } catch (error) {
     console.warn("Failed to read guest cart:", error);
     return [];
@@ -116,7 +140,10 @@ export function getGuestCartItems() {
 
 export function writeGuestCartItems(items: any[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+  const normalized = (items ?? [])
+    .map((item) => normalizeGuestCartItem(item))
+    .filter((item) => item && item.product_id && Number(item.quantity ?? 0) > 0);
+  window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(normalized));
 }
 
 export async function mergeGuestCartIntoUserCart(userId: string) {
@@ -297,10 +324,13 @@ export const useCart = (userId?: string) =>
         }
 
         return guestItems.map((item: any) => {
-          const product = productMap.get(item.product_id) ?? null;
+          const productId = item.product_id ?? item.productId ?? null;
+          const product = productId ? productMap.get(productId) ?? null : null;
           const variant = item.variant_id ? variantMap.get(item.variant_id) ?? null : null;
           return {
             ...item,
+            product_id: productId,
+            variant_id: item.variant_id ?? item.variantId ?? null,
             quantity: Number(item.quantity ?? 0),
             products: product,
             variant,
