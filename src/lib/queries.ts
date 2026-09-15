@@ -289,60 +289,9 @@ export async function mergeGuestCartIntoUserCart(userId: string) {
 export const useCart = (userId?: string) =>
   useQuery({
     queryKey: ["cart", userId ?? "guest"],
+    enabled: !!userId,
     queryFn: async () => {
-      if (!userId) {
-        const guestItems = getGuestCartItems();
-        if (guestItems.length === 0) return [];
-
-        const productIds = [...new Set(guestItems.map((item) => item.product_id).filter(Boolean))];
-        const variantIds = [...new Set(guestItems.map((item) => item.variant_id).filter(Boolean))];
-        const productMap = new Map<string, any>();
-        const variantMap = new Map<string, any>();
-
-        if (productIds.length > 0) {
-          const { data, error } = await supabase
-            .from("products")
-            .select("id, name, slug, image_url, brand, price, unit, weight, max_qty, stock, status, is_active, product_variants(*)")
-            .in("id", productIds);
-
-          if (error) throw error;
-          for (const product of data ?? []) {
-            productMap.set(product.id, product);
-          }
-        }
-
-        if (variantIds.length > 0) {
-          const { data, error } = await supabase
-            .from("product_variants")
-            .select("id, product_id, name, stock, status, is_active, max_qty, selling_price, mrp, image_url, unit, quantity_value")
-            .in("id", variantIds);
-
-          if (error) throw error;
-          for (const variant of data ?? []) {
-            variantMap.set(variant.id, variant);
-          }
-        }
-
-        return guestItems.map((item: any) => {
-          const productId = item.product_id ?? item.productId ?? null;
-          const product = productId ? productMap.get(productId) ?? null : null;
-          const variant = item.variant_id ? variantMap.get(item.variant_id) ?? null : null;
-          return {
-            ...item,
-            product_id: productId,
-            variant_id: item.variant_id ?? item.variantId ?? null,
-            quantity: Number(item.quantity ?? 0),
-            products: product,
-            variant,
-            variant_price: item.variant_price ?? variant?.selling_price ?? product?.price ?? null,
-            variant_image_url: item.variant_image_url ?? variant?.image_url ?? product?.image_url ?? null,
-            variant_unit: item.variant_unit ?? variant?.unit ?? product?.unit ?? product?.weight ?? null,
-            variant_max_qty: item.variant_max_qty ?? variant?.max_qty ?? product?.max_qty ?? null,
-            variant_stock: item.variant_stock ?? variant?.stock ?? product?.stock ?? null,
-            variant_name: item.variant_name ?? variant?.name ?? null,
-          };
-        });
-      }
+      if (!userId) return [];
 
       const { data: cartRows, error } = await supabase
         .from("cart_items")
@@ -455,31 +404,10 @@ export function useAddToCart(userId?: string) {
   return useMutation({
     mutationFn: async ({ productId, quantity = 1, variant }: { productId: string; quantity?: number; variant?: any }) => {
       if (!userId) {
-        const guestItems = getGuestCartItems();
-        const itemKey = `${productId}:${variant?.id ?? "default"}`;
-        const existingIndex = guestItems.findIndex((item) => item.id === itemKey || (item.product_id === productId && (variant ? item.variant_id === variant.id : item.variant_id == null)));
-
-        const nextItems = [...guestItems];
-        if (existingIndex >= 0) {
-          nextItems[existingIndex] = {
-            ...nextItems[existingIndex],
-            quantity: Number(nextItems[existingIndex].quantity ?? 0) + Number(quantity ?? 0),
-          };
-        } else {
-          nextItems.push({
-            id: itemKey,
-            product_id: productId,
-            variant_id: variant?.id ?? null,
-            quantity,
-            variant_name: variant?.name ?? null,
-            variant_price: variant?.price ?? null,
-            variant_image_url: variant?.image_url ?? null,
-            variant_unit: variant?.unit ?? null,
-            variant_max_qty: variant?.max_qty ?? null,
-          });
+        if (typeof window !== "undefined") {
+          const redirect = encodeURIComponent(`${window.location.pathname}${window.location.search}` || "/");
+          window.location.assign(`/auth?redirect=${redirect}`);
         }
-
-        writeGuestCartItems(nextItems);
         return;
       }
 

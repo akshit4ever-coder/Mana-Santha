@@ -22,10 +22,24 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { user } = useAuth();
-  const { data: cart } = useCart(user?.id);
-  const upd = useUpdateCartQty(user?.id);
-  const del = useRemoveCartItem(user?.id);
   const navigate = useNavigate();
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background"><Header />
+        <main className="container mx-auto px-4 py-20 text-center">
+          <h1 className="text-2xl font-bold">Please sign in to view your cart.</h1>
+          <p className="mt-2 text-muted-foreground">You need an account to manage your cart.</p>
+          <Button asChild className="mt-6 rounded-full"><Link to="/auth" search={{ redirect: "/cart" } as any}>Sign in</Link></Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  const { data: cart } = useCart(user.id);
+  const upd = useUpdateCartQty(user.id);
+  const del = useRemoveCartItem(user.id);
 
   const items = cart ?? [];
   const fetchErrors = items.filter((item) => item.variant_fetch_error === true);

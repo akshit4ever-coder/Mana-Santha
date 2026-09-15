@@ -83,12 +83,6 @@ function AuthPage() {
       setRememberMePreference(rememberMe);
       resetSupabaseClient(rememberMe);
       const result = await signInWithIdentifierAndPassword(loginIdentifier, loginPassword);
-      try {
-        const { mergeGuestCartIntoUserCart } = await import("@/lib/queries");
-        await mergeGuestCartIntoUserCart(result.user?.id ?? "");
-      } catch (mergeError) {
-        console.warn("Guest cart merge failed after sign-in:", mergeError);
-      }
       toast.success("Welcome back! 🎉");
       navigate({ to: redirectPath });
     } catch (error: any) {
@@ -126,12 +120,6 @@ function AuthPage() {
         phone: regPhone,
         password: regPassword,
       });
-      try {
-        const { mergeGuestCartIntoUserCart } = await import("@/lib/queries");
-        await mergeGuestCartIntoUserCart(result.user?.id ?? "");
-      } catch (mergeError) {
-        console.warn("Guest cart merge failed after sign-up:", mergeError);
-      }
       toast.success("Account created successfully! Welcome 🎉");
       navigate({ to: redirectPath });
     } catch (error: any) {
