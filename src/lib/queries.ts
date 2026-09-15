@@ -569,25 +569,35 @@ export function useToggleWishlist(userId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (productId: string) => {
-      if (!userId) throw new Error("Please sign in");
+      if (!userId) {
+        throw new Error("Sign in to save your favorite products.");
+      }
+
       const { data: existing } = await supabase
         .from("wishlist_items")
         .select("id")
         .eq("user_id", userId)
         .eq("product_id", productId)
         .maybeSingle();
+
       if (existing) {
-        await supabase.from("wishlist_items").delete().eq("id", existing.id);
+        const { error } = await supabase.from("wishlist_items").delete().eq("id", existing.id).eq("user_id", userId);
+        if (error) throw error;
         return "removed";
       }
-      await supabase.from("wishlist_items").insert({ user_id: userId, product_id: productId });
+
+      const { error } = await supabase.from("wishlist_items").insert({ user_id: userId, product_id: productId });
+      if (error) throw error;
       return "added";
     },
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["wishlist"] });
+      qc.invalidateQueries({ queryKey: ["wishlist", userId] });
       toast.success(res === "added" ? "Added to wishlist" : "Removed from wishlist");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      const message = e?.message || "Unable to update wishlist.";
+      toast.error(message.includes("Sign in") ? "Sign in to save your favorite products." : message);
+    },
   });
 }
 

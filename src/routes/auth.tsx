@@ -31,9 +31,14 @@ function AuthPage() {
     const redirect = params.get("redirect");
     return redirect && redirect.startsWith("/") ? redirect : "/";
   })();
+  const initialMode = (() => {
+    if (typeof window === "undefined") return "signin";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("mode") === "signup" ? "signup" : "signin";
+  })();
 
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">(initialMode);
   const [rememberMe, setRememberMe] = useState<boolean>(() => getRememberMePreference());
   // login method fixed to password-only
 
@@ -49,6 +54,10 @@ function AuthPage() {
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
 
   // OTP removed — password-only login
+
+  useEffect(() => {
+    setActiveTab(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     if (user && !loading) {

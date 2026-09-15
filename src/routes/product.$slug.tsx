@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Heart, Truck, ShieldCheck, Loader2, Minus, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Layout/Header";
 import { Footer } from "@/components/Layout/Footer";
 import { Badge } from "@/components/UI/badge";
 import { Button } from "@/components/UI/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/UI/dialog";
 import { useAuth } from "@/lib/auth";
 import { useAddToCart, useCart, useProduct, useProducts, useToggleWishlist, useUpdateCartQty, useWishlist } from "@/lib/queries";
 import { formatINR, discountPct } from "@/lib/format";
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/product/$slug")({
 
 function ProductPage() {
   const { slug } = Route.useParams();
+  const navigate = useNavigate();
   const { data: product, isLoading } = useProduct(slug);
   const { user } = useAuth();
   const { data: cart } = useCart(user?.id);
@@ -32,6 +34,8 @@ function ProductPage() {
   const upd = useUpdateCartQty(user?.id);
   const wish = useToggleWishlist(user?.id);
   const { data: related } = useProducts({ categorySlug: product?.categories?.slug, limit: 10 });
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authDialogMode, setAuthDialogMode] = useState<'wishlist' | 'cart'>('wishlist');
 
   const variants = product?.product_variants ?? [];
   const firstVariant = variants.find((v: any) => v.is_active !== false) ?? null;
@@ -69,6 +73,16 @@ function ProductPage() {
 
   const item = cart?.find((c) => c.product_id === product?.id && (selectedVariant ? c.variant_id === selectedVariant.id : c.variant_id == null));
   const isWish = wl?.some((w) => w.product_id === product?.id);
+  const authRedirect = typeof window !== "undefined" ? `${window.location.pathname}${window.location.search || ""}` : "/";
+
+  const handleWishlistToggle = () => {
+    if (!user) {
+      setAuthDialogMode('wishlist');
+      setAuthDialogOpen(true);
+      return;
+    }
+    wish.mutate(product.id);
+  };
 
   if (isLoading) return (<div className="min-h-screen"><Header /><div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></div>);
   if (!product) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Product not found</div></div>);
@@ -134,20 +148,27 @@ function ProductPage() {
                   <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable || item.quantity >= (selectedVariant?.max_qty ?? product.max_qty) || item.quantity >= (selectedVariant ? selectedVariant.stock : product.stock)} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity + 1 })}><Plus className="h-4 w-4" /></Button>
                 </div>
               ) : (
-                <Button size="lg" disabled={!isAvailable || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} onClick={() => add.mutate({ productId: product.id, variant: selectedVariant ? {
-                  id: selectedVariant.id,
-                  name: selectedVariant.name,
-                  price: selectedVariant.selling_price ?? selectedVariant.price,
-                  mrp: selectedVariant.mrp,
-                  image_url: selectedVariant.image_url ?? product.image_url,
-                  unit: selectedVariant.unit ?? product.unit,
-                  max_qty: selectedVariant.max_qty ?? product.max_qty,
-                } : undefined })} className="rounded-full">
+                <Button size="lg" disabled={!isAvailable || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} onClick={() => {
+                  if (!user) {
+                    setAuthDialogMode('cart');
+                    setAuthDialogOpen(true);
+                    return;
+                  }
+                  add.mutate({ productId: product.id, variant: selectedVariant ? {
+                    id: selectedVariant.id,
+                    name: selectedVariant.name,
+                    price: selectedVariant.selling_price ?? selectedVariant.price,
+                    mrp: selectedVariant.mrp,
+                    image_url: selectedVariant.image_url ?? product.image_url,
+                    unit: selectedVariant.unit ?? product.unit,
+                    max_qty: selectedVariant.max_qty ?? product.max_qty,
+                  } : undefined });
+                }} className="rounded-full">
                   {!isAvailable ? "Out of stock" : "Add to Cart"}
                 </Button>
               )}
-              <Button size="lg" variant="outline" onClick={() => wish.mutate(product.id)} className="rounded-full">
-                <Heart className={`mr-2 h-4 w-4 ${isWish ? "fill-destructive text-destructive" : ""}`} /> {isWish ? "Saved" : "Wishlist"}
+              <Button size="lg" variant="outline" onClick={handleWishlistToggle} className="rounded-full" disabled={wish.isLoading}>
+                <Heart className={`mr-2 h-4 w-4 ${isWish ? "fill-destructive text-destructive" : ""}`} /> {isWish ? "Remove from Wishlist" : "Add to Wishlist"}
               </Button>
             </div>
 
@@ -178,6 +199,38 @@ function ProductPage() {
         )}
       </main>
       <Footer />
+
+      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{authDialogMode === 'cart' ? 'Sign in to add product to cart.' : 'Sign in to save your favorite products.'}</DialogTitle>
+            <DialogDescription>
+              {authDialogMode === 'cart' ? 'Sign in to add items to your cart and checkout securely.' : 'Save products you love and keep track of them after you sign in.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setAuthDialogOpen(false);
+                navigate({ to: "/auth", search: { redirect: authRedirect, mode: "signin" } as any });
+              }}
+            >
+              Sign In
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setAuthDialogOpen(false);
+                navigate({ to: "/auth", search: { redirect: authRedirect, mode: "signup" } as any });
+              }}
+            >
+              Create Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

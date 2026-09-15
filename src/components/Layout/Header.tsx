@@ -6,7 +6,7 @@ import LogoIcon from "@/assets/ManaSantha_Logo.jpeg";
 import TitleImg from "@/assets/Mana Santa Title.jpg";
 import { Input } from "@/components/UI/input";
 import { useAuth } from "@/lib/auth";
-import { useCart } from "@/lib/queries";
+import { useCart, useWishlist } from "@/lib/queries";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/UI/dropdown-menu";
 import { useEffect, useState } from "react";
 import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
@@ -14,11 +14,13 @@ import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
 export function Header() {
   const { user, isAdmin, signOut } = useAuth();
   const { data: cart } = useCart(user?.id);
+  const { data: wishlist } = useWishlist(user?.id);
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const cartCount = cart?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? 0;
+  const wishlistCount = wishlist?.length ?? 0;
   const cutoffStatus = getOrderCutoffStatus();
 
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Account";
@@ -64,7 +66,7 @@ export function Header() {
           </Link>
 
           <div className="flex items-center gap-1.5">
-            <Button asChild variant="ghost" size="icon"><Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" /></Link></Button>
+            <Button asChild variant="ghost" size="icon" className="relative"><Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" />{wishlistCount > 0 && (<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1 text-xs font-bold text-white">{wishlistCount}</span>)}</Link></Button>
             <Button asChild variant="ghost" size="icon" className="relative"><Link to="/cart"><ShoppingCart className="h-5 w-5 text-[#176B3A]" />{cartCount > 0 && (<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1 text-xs font-bold text-white">{cartCount}</span>)}</Link></Button>
             <Button aria-label="Open menu" onClick={() => setIsMobileMenuOpen(true)} variant="ghost" size="icon" className="ml-0.5 flex h-9 w-9 items-center justify-center rounded-full border border-[#d9c9a4] bg-[#f4ead3] shadow-sm ring-1 ring-[#f3e2b6]">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="#173522" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -115,8 +117,8 @@ export function Header() {
         </form>
 
         <div className="ml-auto flex items-center gap-2">
-          <Button asChild variant="ghost" size="icon" className="hidden md:inline-flex">
-            <Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" /></Link>
+          <Button asChild variant="ghost" size="icon" className="relative hidden md:inline-flex">
+            <Link to="/wishlist"><Heart className="h-5 w-5 text-[#176B3A]" />{wishlistCount > 0 && (<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1 text-xs font-bold text-white">{wishlistCount}</span>)}</Link>
           </Button>
 
           <Button asChild variant="ghost" className="relative">
