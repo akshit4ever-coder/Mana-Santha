@@ -15,6 +15,7 @@ import { useCategories, useProducts, useShopFreshProducts } from "@/lib/queries"
 import { FestivalHero } from "@/components/festival/FestivalHero";
 import HeroImage from "@/assets/festival/hero_banner.png";
 import HeroMobile from "@/assets/festival/mobile_hero_image.png";
+import ComboOffer from "@/components/ComboOffer";
 import { TrustFeatures } from "@/components/festival/TrustFeatures";
 import { FestivalCategorySlider } from "@/components/festival/FestivalCategorySlider";
 import { FestivalOfferBanner } from "@/components/festival/FestivalOfferBanner";
@@ -431,6 +432,8 @@ function Home() {
           bannerImage={HeroImage}
           mobileBannerImage={HeroMobile}
         />
+
+        <ComboOffer />
 
         <TrustFeatures />
 

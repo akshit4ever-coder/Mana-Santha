@@ -2,6 +2,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus, Minus, Loader2, Heart } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/UI/button";
 import { Badge } from "@/components/UI/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/UI/dialog";
@@ -10,6 +11,14 @@ import { useAddToCart, useCart, useToggleWishlist, useUpdateCartQty, useWishlist
 import { formatINR, discountPct } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
+import {
+  canAddRiceProduct,
+  getCartRestrictionForProduct,
+  isLargeOilVariantByClassification,
+  isRiceProductByClassification,
+  LARGE_OIL_LIMIT_MESSAGE,
+  RICE_LIMIT_MESSAGE,
+} from "@/lib/cart-rules";
 
 export function ProductCard({ product }: { product: any }) {
   const { user } = useAuth();
@@ -29,6 +38,9 @@ export function ProductCard({ product }: { product: any }) {
   const selectedVariantAvailable = selectedVariant ? isVariantAvailable(product, selectedVariant) : isProductAvailable(product);
   const outOfStock = !isProductAvailable(product);
   const isWish = wishlist?.some((w: any) => w.product_id === product.id);
+  const riceLimitCheck = canAddRiceProduct(cart ?? [], product, 1);
+  const cartRestrictionMessage = getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], 1);
+  const isRestricted = Boolean(cartRestrictionMessage);
   const authRedirect = typeof window !== "undefined" ? `${window.location.pathname}${window.location.search || ""}` : "/";
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authDialogMode, setAuthDialogMode] = useState<'wishlist' | 'cart'>('wishlist');
@@ -108,7 +120,14 @@ export function ProductCard({ product }: { product: any }) {
                 <span className="min-w-6 text-center text-sm font-bold">{(item as any).quantity}</span>
                 <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground"
                   disabled={!isProductAvailable(selectedVariant ?? product) || (((item as any).quantity >= (((item as any)['variant_max_qty'] ?? selectedVariant?.max_qty ?? firstVariant?.max_qty ?? product.max_qty))) || (item as any).quantity >= ((selectedVariant?.stock ?? firstVariant?.stock) ?? product.stock))}
-                  onClick={() => update.mutate({ id: (item as any).id, quantity: (item as any).quantity + 1 })}>
+                  onClick={() => {
+                    const nextRestriction = getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], Number((item as any).quantity ?? 0) + 1);
+                    if (nextRestriction) {
+                      toast.error(nextRestriction);
+                      return;
+                    }
+                    update.mutate({ id: (item as any).id, quantity: (item as any).quantity + 1 });
+                  }}>
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -116,11 +135,17 @@ export function ProductCard({ product }: { product: any }) {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!selectedVariantAvailable || add.isPending}
+                aria-disabled={isRestricted || !selectedVariantAvailable || add.isPending}
+                disabled={false}
                 onClick={() => {
                   if (!user) {
                     setAuthDialogMode('cart');
                     setAuthDialogOpen(true);
+                    return;
+                  }
+                  const restrictedMessage = getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], 1);
+                  if (restrictedMessage) {
+                    toast.error(restrictedMessage);
                     return;
                   }
                   add.mutate({ productId: product.id, variant: selectedVariant ? {
@@ -132,7 +157,7 @@ export function ProductCard({ product }: { product: any }) {
                     unit: selectedVariant.unit ?? product.unit,
                   } : undefined });
                 }}
-                className="h-9 rounded-full border-primary/30 font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                className={`h-9 rounded-full border-primary/30 font-semibold text-primary hover:bg-primary hover:text-primary-foreground ${isRestricted ? "cursor-not-allowed opacity-60" : ""}`}
               >
                 {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "ADD"}
               </Button>

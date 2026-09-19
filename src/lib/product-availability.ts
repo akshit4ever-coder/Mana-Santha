@@ -57,6 +57,23 @@ export function getCartItemAvailabilityState(item?: any) {
     return { isAvailable: false, hasVariantFetchError: false, isMissingVariant: false };
   }
 
+  const comboSnapshot = item.combo_snapshot ?? null;
+  const hasCombo = Boolean(item.combo_id || comboSnapshot);
+
+  if (hasCombo) {
+    const comboStatus = normalizeProductStatus(comboSnapshot?.status ?? "active");
+    const comboIsActive = comboStatus === "" || comboStatus === "active";
+    const comboStock = Number(comboSnapshot?.stock ?? item.stock ?? 0);
+    const quantity = Number(item.quantity ?? 0);
+    const hasFiniteStock = comboStock > 0;
+
+    return {
+      isAvailable: comboIsActive && (!hasFiniteStock || quantity <= comboStock),
+      hasVariantFetchError: false,
+      isMissingVariant: false,
+    };
+  }
+
   const product = item.products ?? null;
   const variant = item.variant ?? null;
 
@@ -98,12 +115,12 @@ export function getCartItemValidationDetail(item?: any) {
     cartItemId: item?.id ?? null,
     productId: item?.product_id ?? item?.products?.id ?? null,
     variantId: item?.variant_id ?? null,
-    productName: item?.products?.name ?? item?.name ?? null,
+    productName: item?.products?.name ?? item?.name ?? item?.combo_snapshot?.name ?? null,
     variantName: item?.variant_name ?? item?.variant?.name ?? null,
-    size: item?.variant_name ?? item?.variant?.name ?? item?.variant_unit ?? item?.products?.unit ?? null,
+    size: item?.variant_name ?? item?.variant?.name ?? item?.variant_unit ?? item?.products?.unit ?? (item?.combo_id ? 'combo' : null),
     quantity: Number(item?.quantity ?? 0),
-    productStock: Number(item?.products?.stock ?? item?.stock ?? 0),
-    productStatus: item?.products?.status ?? item?.status ?? null,
+    productStock: Number(item?.products?.stock ?? item?.stock ?? item?.combo_snapshot?.stock ?? 0),
+    productStatus: item?.products?.status ?? item?.status ?? item?.combo_snapshot?.status ?? null,
     variantStock: Number(item?.variant?.stock ?? item?.variant_stock ?? 0),
     variantIsActive: item?.variant?.is_active ?? item?.is_active ?? true,
     isAvailable: false,
@@ -112,6 +129,19 @@ export function getCartItemValidationDetail(item?: any) {
 
   if (!item) {
     return { ...base, availabilityReason: "missing_item", isAvailable: false };
+  }
+
+  if (item.combo_id || item.combo_snapshot) {
+    const comboStatus = normalizeProductStatus(item.combo_snapshot?.status ?? "active");
+    const comboIsActive = comboStatus === "" || comboStatus === "active";
+    const comboStock = Number(item.combo_snapshot?.stock ?? item.stock ?? 0);
+    if (!comboIsActive) {
+      return { ...base, isAvailable: false, availabilityReason: "combo_inactive" };
+    }
+    if (comboStock > 0 && Number(item.quantity ?? 0) > comboStock) {
+      return { ...base, isAvailable: false, availabilityReason: "quantity_exceeds_stock" };
+    }
+    return { ...base, isAvailable: true, availabilityReason: "ok" };
   }
 
   const product = item.products ?? null;

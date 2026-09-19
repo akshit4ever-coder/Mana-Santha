@@ -12,6 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
 import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
 import { getCartItemValidationDetail, isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
+import {
+  getCartOrderSummary,
+  LARGE_OIL_LIMIT_MESSAGE,
+  RICE_LIMIT_MESSAGE,
+  validateLargeOilRule,
+  validateRiceRule,
+} from "@/lib/cart-rules";
 import { toast } from "sonner";
 import { Loader2, MapPin, Wallet } from "lucide-react";
 import { STORE_LAT, STORE_LNG, STORE_LOCATION, DELIVERY_RADIUS_KM } from "@/lib/config";
@@ -722,9 +729,12 @@ function Checkout() {
   }, [user, navigate]);
 
   const items: any[] = (cart ?? []) as any[];
-  const subtotal = items.reduce((s, i) => s + Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity, 0);
-  const deliveryFee = subtotal >= 499 ? 0 : 29;
-  const total = subtotal + deliveryFee;
+  const orderSummary = getCartOrderSummary(items);
+  const subtotal = orderSummary.subtotal;
+  const deliveryFee = orderSummary.deliveryFee;
+  const total = orderSummary.total;
+  const riceRule = validateRiceRule(items);
+  const oilRule = validateLargeOilRule(items);
   const validationResults = items.map((item) => ({
     ...item,
     validation: getCartItemValidationDetail(item),
@@ -794,9 +804,16 @@ function Checkout() {
       return;
     }
 
-    // Validate stock for all items
+    // Validate stock and business rules for all items
     setSubmitting(true);
     try {
+      if (!riceRule.allowed) {
+        throw new Error(RICE_LIMIT_MESSAGE);
+      }
+      if (!oilRule.allowed) {
+        throw new Error(LARGE_OIL_LIMIT_MESSAGE);
+      }
+
       const { data: currentProducts } = await supabase
         .from("products")
         .select("id, stock, status, is_active")
@@ -874,13 +891,14 @@ function Checkout() {
         }
       }
 
+      const finalSummary = getCartOrderSummary(items);
       const deliveryStatus = getOrderCutoffStatus();
       const deliveryDate = deliveryStatus.deliveryDate.toISOString();
       const orderPayload = {
         user_id: supabaseUser.id,
-        subtotal,
-        delivery_fee: deliveryFee,
-        total,
+        subtotal: finalSummary.subtotal,
+        delivery_fee: finalSummary.deliveryFee,
+        total: finalSummary.total,
         payment_method: "cod",
         payment_status: "pending",
         status: "pending",
@@ -901,20 +919,55 @@ function Checkout() {
       console.log("Order insert error:", JSON.stringify(oe, null, 2));
       if (oe) throw oe;
 
-      const orderItems = items.map((i) => ({
-        order_id: order.id,
-        product_id: i.product_id,
-        variant_id: i.variant_id ?? null,
-        name: i.products?.name ?? "",
-        variant_name: i.variant_name ?? null,
-        image_url: i.variant_image_url ?? i.products?.image_url,
-        unit: i.variant_unit ?? i.products?.unit,
-        price: i.variant_price ?? i.products?.price,
-        quantity: i.quantity,
-        subtotal: Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity,
-      }));
+      // Build order_items including combo items
+      const orderItems: any[] = [];
+      const comboSnapshotsToInsert: any[] = [];
+      for (const i of items) {
+        if (i.combo_id) {
+          // validate combo availability and price server-side
+          const { data: combo } = await supabase.from("combos").select("*").eq("id", i.combo_id).maybeSingle();
+          if (!combo || combo.status !== "active") throw new Error("Combo is no longer available");
+          if (combo.stock != null && Number(combo.stock) < Number(i.quantity)) throw new Error("Combo is sold out or insufficient stock");
+
+          const price = Number(i.combo_snapshot?.offer_price ?? i.combo_snapshot?.price ?? combo.offer_price ?? combo.price ?? 0);
+          orderItems.push({
+            order_id: order.id,
+            product_id: null,
+            variant_id: null,
+            name: i.combo_snapshot?.name ?? combo.name ?? "Combo",
+            variant_name: null,
+            image_url: i.combo_snapshot?.image_url ?? combo.image_url,
+            unit: "combo",
+            price,
+            quantity: i.quantity,
+            subtotal: Number(price) * Number(i.quantity),
+          });
+
+          comboSnapshotsToInsert.push({ order_id: order.id, combo_id: i.combo_id, snapshot: i.combo_snapshot ?? combo });
+        } else {
+          orderItems.push({
+            order_id: order.id,
+            product_id: i.product_id,
+            variant_id: i.variant_id ?? null,
+            name: i.products?.name ?? "",
+            variant_name: i.variant_name ?? null,
+            image_url: i.variant_image_url ?? i.products?.image_url,
+            unit: i.variant_unit ?? i.products?.unit,
+            price: i.variant_price ?? i.products?.price,
+            quantity: i.quantity,
+            subtotal: Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity,
+          });
+        }
+      }
+
       const { error: ie } = await (supabase as any).from("order_items").insert(orderItems as any[]);
       if (ie) throw ie;
+
+      // insert combo snapshots for order history
+      if (comboSnapshotsToInsert.length > 0) {
+        const { error: csErr } = await supabase.from("combo_order_snapshots").insert(comboSnapshotsToInsert);
+        if (csErr) console.warn("Failed to insert combo snapshots:", csErr);
+      }
 
       await supabase.from("cart_items").delete().eq("user_id", user.id);
 
@@ -1133,6 +1186,12 @@ function Checkout() {
               <div className="space-y-2 border-t pt-3 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatINR(subtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span>{deliveryFee === 0 ? <span className="text-success">FREE</span> : formatINR(deliveryFee)}</span></div>
+                {orderSummary.hasCombo && (
+                  <div className="rounded-md bg-emerald-50 px-2 py-2 text-xs font-medium text-emerald-800">నేటి కాంబోతో ఉచిత డెలివరీ</div>
+                )}
+                {!orderSummary.hasCombo && subtotal > 0 && subtotal < 499 && (
+                  <div className="rounded-md bg-accent/10 px-2 py-2 text-xs text-accent-foreground/80">Add {formatINR(499 - subtotal)} more for free delivery</div>
+                )}
                 <div className="mt-2 flex justify-between border-t pt-2 text-lg font-bold"><span>Total</span><span>{formatINR(total)}</span></div>
               </div>
               <Button type="submit" size="lg" disabled={submitting || deliveryAvailable === false || checkingDelivery} className="mt-4 w-full rounded-full">

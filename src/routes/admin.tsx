@@ -1,6 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Header } from "@/components/Layout/Header";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { adminSupabase } from "@/integrations/supabase/adminClient";
@@ -28,6 +27,7 @@ import {
   Lock,
   Mail,
   AlertTriangle,
+  Store,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -50,6 +50,7 @@ const NAV_ITEMS = [
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { to: "/admin/inventory", label: "Inventory", icon: Boxes },
+  { to: "/admin/combos", label: "Daily Vegetable Combo", icon: Package },
   { to: "/admin/delivery", label: "Delivery", icon: Bike },
   { to: "/admin/reports", label: "Reports", icon: BarChart2 },
   { to: "/admin/settings", label: "Settings", icon: Settings },
@@ -116,7 +117,15 @@ function AdminLoginForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-      <Header />
+      <header className="border-b border-slate-700 bg-slate-900/90 px-4 py-4 shadow-sm backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">Mana Santa</p>
+            <h1 className="text-lg font-semibold text-white">Admin Panel</h1>
+          </div>
+          <Link to="/" className="text-sm text-slate-300 transition hover:text-white">← Storefront</Link>
+        </div>
+      </header>
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="rounded-2xl border border-slate-700 bg-slate-800/80 backdrop-blur-xl p-8 shadow-2xl">
@@ -330,8 +339,16 @@ function AdminLayout() {
   // Logged in as non-admin (no admin session) -> show 403 Access Denied
   if (!effectiveIsAdmin) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <Header />
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <header className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="mx-auto flex max-w-6xl items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Admin</p>
+              <h1 className="text-lg font-semibold text-slate-900">Access Denied</h1>
+            </div>
+            <Link to="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">Back to storefront</Link>
+          </div>
+        </header>
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="max-w-md w-full text-center space-y-6">
             <div className="mx-auto w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -363,21 +380,20 @@ function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="container mx-auto grid gap-6 px-4 py-6 lg:grid-cols-[240px_1fr]">
-        {/* Sidebar */}
-        <aside>
-          <nav className="sticky top-24 flex flex-col gap-1 rounded-xl border bg-card p-3 shadow-card">
-            <div className="mb-2 px-3 py-1">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Admin Panel
-              </p>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="flex min-h-screen flex-col lg:flex-row">
+        <aside className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 lg:px-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">Mana Santa</p>
+              <h2 className="text-lg font-semibold text-slate-900">Admin Panel</h2>
             </div>
+            <div className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 lg:inline-flex">v1</div>
+          </div>
+
+          <nav className="flex flex-col gap-1 p-3 lg:p-4">
             {NAV_ITEMS.map((n) => {
-              const active = n.exact
-                ? path === n.to
-                : path.startsWith(n.to) && n.to !== "/admin";
+              const active = n.exact ? path === n.to : path.startsWith(n.to) && n.to !== "/admin";
               const exactActive = n.exact && path === "/admin";
               const isActive = n.exact ? exactActive : active;
 
@@ -385,32 +401,73 @@ function AdminLayout() {
                 <Link
                   key={n.to}
                   to={n.to as any}
-                  className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "hover:bg-secondary text-foreground"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
                   <span className="flex items-center gap-2">
                     <n.icon className="h-4 w-4" />
                     {n.label}
                   </span>
-                  {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-70" />}
+                  {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-80" />}
                 </Link>
               );
             })}
-            <div className="mt-3 border-t pt-3">
-              <p className="px-3 text-xs text-muted-foreground">
-                Logged in as <span className="font-medium text-foreground">{(adminUser && adminUser.email) ?? user?.email}</span>
-              </p>
-            </div>
           </nav>
+
+          <div className="border-t border-slate-200 px-3 py-3 lg:px-4">
+            <Link
+              to="/"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100"
+            >
+              <Store className="h-4 w-4" />
+              Back to Store
+            </Link>
+          </div>
+
+          <div className="mt-auto border-t border-slate-200 px-4 py-4 lg:px-6">
+            <p className="text-xs text-slate-500">Signed in as</p>
+            <p className="mt-1 truncate text-sm font-medium text-slate-800">{(adminUser && adminUser.email) ?? user?.email}</p>
+          </div>
         </aside>
 
-        {/* Main content */}
-        <main className="min-w-0">
-          <Outlet />
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur-sm lg:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard</p>
+                <h1 className="mt-1 text-2xl font-bold text-slate-900">{path === "/admin" ? "Overview" : NAV_ITEMS.find((item) => item.to !== "/admin" && path.startsWith(item.to))?.label ?? "Admin"}</h1>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                >
+                  <Store className="h-4 w-4" />
+                  View Store
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await signOut();
+                  }}
+                  className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 p-4 lg:p-6">
+            <div className="mx-auto max-w-7xl">
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

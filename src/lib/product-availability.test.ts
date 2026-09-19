@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getCartItemAvailabilityState, isParentProductAvailable, isProductAvailable, isVariantAvailable, normalizeProductStatus } from './product-availability.ts';
+import { getCartItemAvailabilityState, getCartItemValidationDetail, isParentProductAvailable, isProductAvailable, isVariantAvailable, normalizeProductStatus } from './product-availability.ts';
 import { getOrderCutoffStatus } from './delivery-cutoff.ts';
 
 test('normalizeProductStatus lowercases and trims status', () => {
@@ -126,6 +126,26 @@ test('variant fetch errors do not mark items unavailable, while confirmed missin
 
   assert.equal(getCartItemAvailabilityState(missingVariantItem).isAvailable, false);
   assert.equal(getCartItemAvailabilityState(missingVariantItem).isMissingVariant, true);
+});
+
+test('combo cart items are available when the combo snapshot is active even without a product row', () => {
+  const comboItem = {
+    id: 'combo-cart-1',
+    combo_id: 'combo-123',
+    product_id: null,
+    quantity: 1,
+    combo_snapshot: {
+      id: 'combo-123',
+      name: 'todays combo',
+      status: 'active',
+      stock: null,
+      offer_price: 199,
+      price: 499,
+    },
+  };
+
+  assert.equal(getCartItemAvailabilityState(comboItem).isAvailable, true);
+  assert.equal(getCartItemValidationDetail(comboItem).isAvailable, true);
 });
 
 test('delivery cutoff uses IST and flips at 7:30 PM exactly', () => {

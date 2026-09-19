@@ -12,6 +12,15 @@ import { formatINR, discountPct } from "@/lib/format";
 import { ProductCard } from "@/components/products/ProductCard";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 import { isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
+import {
+  canAddRiceProduct,
+  getCartRestrictionForProduct,
+  isLargeOilVariantByClassification,
+  isRiceProductByClassification,
+  LARGE_OIL_LIMIT_MESSAGE,
+  RICE_LIMIT_MESSAGE,
+} from "@/lib/cart-rules";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/product/$slug")({
   head: ({ params }) => ({
@@ -73,6 +82,10 @@ function ProductPage() {
 
   const item = cart?.find((c) => c.product_id === product?.id && (selectedVariant ? c.variant_id === selectedVariant.id : c.variant_id == null));
   const isWish = wl?.some((w) => w.product_id === product?.id);
+  const riceLimitCheck = product ? canAddRiceProduct(cart ?? [], product, 1) : { allowed: true, riceQuantity: 0, message: "" };
+  const productRestrictionMessage = product ? getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], 1) : null;
+  const isRiceItem = product ? isRiceProductByClassification(product) : false;
+  const isRestricted = Boolean(productRestrictionMessage);
   const authRedirect = typeof window !== "undefined" ? `${window.location.pathname}${window.location.search || ""}` : "/";
 
   const handleWishlistToggle = () => {
@@ -145,13 +158,25 @@ function ProductPage() {
                 <div className="flex items-center gap-2 rounded-full bg-primary p-1 text-primary-foreground">
                   <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity - 1 })}><Minus className="h-4 w-4" /></Button>
                   <span className="min-w-10 text-center text-lg font-bold">{item.quantity}</span>
-                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable || item.quantity >= (selectedVariant?.max_qty ?? product.max_qty) || item.quantity >= (selectedVariant ? selectedVariant.stock : product.stock)} onClick={() => upd.mutate({ id: item.id, quantity: item.quantity + 1 })}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full text-primary-foreground hover:bg-primary-glow/40 hover:text-primary-foreground" disabled={!isAvailable || item.quantity >= (selectedVariant?.max_qty ?? product.max_qty) || item.quantity >= (selectedVariant ? selectedVariant.stock : product.stock)} onClick={() => {
+                    const nextRestriction = getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], Number(item.quantity ?? 0) + 1);
+                    if (nextRestriction) {
+                      toast.error(nextRestriction);
+                      return;
+                    }
+                    upd.mutate({ id: item.id, quantity: item.quantity + 1 });
+                  }}><Plus className="h-4 w-4" /></Button>
                 </div>
               ) : (
-                <Button size="lg" disabled={!isAvailable || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} onClick={() => {
+                <Button size="lg" aria-disabled={isRestricted || !isAvailable || (selectedVariant ? selectedVariant.max_qty <= 0 : product.max_qty <= 0)} disabled={false} onClick={() => {
                   if (!user) {
                     setAuthDialogMode('cart');
                     setAuthDialogOpen(true);
+                    return;
+                  }
+                  const restrictedMessage = getCartRestrictionForProduct(product, selectedVariant ?? firstVariant ?? null, cart ?? [], 1);
+                  if (restrictedMessage) {
+                    toast.error(restrictedMessage);
                     return;
                   }
                   add.mutate({ productId: product.id, variant: selectedVariant ? {
@@ -163,7 +188,7 @@ function ProductPage() {
                     unit: selectedVariant.unit ?? product.unit,
                     max_qty: selectedVariant.max_qty ?? product.max_qty,
                   } : undefined });
-                }} className="rounded-full">
+                }} className={`rounded-full ${isRestricted ? "cursor-not-allowed opacity-60" : ""}`}>
                   {!isAvailable ? "Out of stock" : "Add to Cart"}
                 </Button>
               )}

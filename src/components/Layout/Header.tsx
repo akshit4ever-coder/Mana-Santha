@@ -84,8 +84,9 @@ export function Header() {
 
         {/* Mobile pills */}
         <div className="mb-3 flex gap-3 overflow-x-auto">
+          <Link to="/daily-combo" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white">నేటి కాంబో</Link>
           <a href="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white">Shop Fresh</a>
-          <a href="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</a>
+          <a href="/kirana-essentials" className="shrink-0 rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white shadow-sm">Kirana Essentials</a>
           <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-900">
             {cutoffStatus.isAfterCutoff ? "Orders now for tomorrow delivery" : "Order before 7:30 PM for today’s delivery"}
           </span>
@@ -165,8 +166,9 @@ export function Header() {
       <div className="hidden md:block border-t bg-[#FFF9EC] px-4 md:px-0">
         <nav className="container mx-auto flex items-center gap-3 overflow-x-auto py-1">
           <Link to="/" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Home</Link>
+          <Link to="/daily-combo" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">నేటి కాంబో</Link>
           <Link to="/shop-fresh" className="shrink-0 rounded-full bg-[#238B45] px-4 py-2 text-sm font-semibold text-white shadow-sm">Shop Fresh</Link>
-          <Link to="/kirana-essentials" className="shrink-0 rounded-full border border-[#e6eadf] bg-[#FFF9EC] px-4 py-2 text-sm font-semibold text-[#173522]">Kirana Essentials</Link>
+          <Link to="/kirana-essentials" className="shrink-0 rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white shadow-sm">Kirana Essentials</Link>
           <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-900">
             {cutoffStatus.isAfterCutoff ? "Orders now for tomorrow delivery" : "Order before 7:30 PM for today’s delivery"}
           </span>
@@ -204,6 +206,7 @@ export function Header() {
 
             <nav className="flex flex-col gap-3 p-4">
               <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Home</Link>
+              <Link to="/daily-combo" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">నేటి కాంబో</Link>
               <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Shop Fresh</Link>
               <Link to="/kirana-essentials" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Kirana Essentials</Link>
               <Link to="/shop-fresh" onClick={() => setIsMobileMenuOpen(false)} className="rounded-md px-2 py-2 text-base font-medium text-[#173522] hover:bg-[#f7f3ea]">Categories</Link>

@@ -9,6 +9,15 @@ import { formatINR } from "@/lib/format";
 import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 import { getCartItemAvailabilityState, isProductAvailable } from "@/lib/product-availability";
 import { toast } from "sonner";
+import {
+  getCartOrderSummary,
+  getCartRestrictionForProduct,
+  isRiceProductByClassification,
+  LARGE_OIL_LIMIT_MESSAGE,
+  RICE_LIMIT_MESSAGE,
+  validateLargeOilRule,
+  validateRiceRule,
+} from "@/lib/cart-rules";
 
 function isCartItemAvailable(item: any) {
   const state = getCartItemAvailabilityState(item);
@@ -23,6 +32,9 @@ export const Route = createFileRoute("/cart")({
 function CartPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { data: cart } = useCart(user?.id);
+  const upd = useUpdateCartQty(user?.id);
+  const del = useRemoveCartItem(user?.id);
 
   if (!user) {
     return (
@@ -37,19 +49,15 @@ function CartPage() {
     );
   }
 
-  const { data: cart } = useCart(user.id);
-  const upd = useUpdateCartQty(user.id);
-  const del = useRemoveCartItem(user.id);
-
   const items = cart ?? [];
   const fetchErrors = items.filter((item) => item.variant_fetch_error === true);
   const unavailableItems = items.filter((item) => item.variant_missing === true || item.variant_fetch_error === true || !isCartItemAvailable(item));
-  const subtotal = items.reduce((s, i) => {
-    if (i.variant_missing === true) return s;
-    return s + Number(i.variant_price ?? i.products?.price ?? 0) * Number(i.quantity ?? 0);
-  }, 0);
-  const deliveryFee = subtotal > 499 || subtotal === 0 ? 0 : 29;
-  const total = subtotal + deliveryFee;
+  const summary = getCartOrderSummary(items);
+  const subtotal = summary.subtotal;
+  const deliveryFee = summary.deliveryFee;
+  const total = summary.total;
+  const riceRule = validateRiceRule(items);
+  const oilRule = validateLargeOilRule(items);
 
   const handleCheckoutClick = () => {
     if (!user) {
@@ -80,39 +88,83 @@ function CartPage() {
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            {summary.hasCombo && (
+              <div className="lg:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                🎉 నేటి కాంబోతో ఉచిత డెలివరీ
+              </div>
+            )}
+            {!riceRule.allowed && (
+              <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 whitespace-pre-line">
+                {RICE_LIMIT_MESSAGE}
+              </div>
+            )}
+            {!oilRule.allowed && (
+              <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 whitespace-pre-line">
+                {LARGE_OIL_LIMIT_MESSAGE}
+              </div>
+            )}
             <div className="space-y-3">
-              {items.map((i) => (
-                <div key={i.id} className="flex gap-3 rounded-xl border bg-card p-3 shadow-card">
-                  <img
-                    src={i.variant_image_url || i.products?.image_url || PLACEHOLDER_IMAGE}
-                    alt={i.products?.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-24 w-24 rounded-lg object-cover"
-                    onError={(e: any) => {
-                      e.currentTarget.src = PLACEHOLDER_IMAGE;
-                    }}
-                  />
-                  {!isCartItemAvailable(i) && (
-                    <div className="absolute left-2 top-2 rounded-full bg-destructive px-2 py-1 text-[10px] font-semibold text-white">Out of stock</div>
-                  )}
-                  <div className="flex flex-1 flex-col">
-                    <div className="text-xs font-medium uppercase text-muted-foreground">{i.products?.brand}</div>
-                    <Link to="/product/$slug" params={{ slug: i.products?.slug ?? "" }} className="font-semibold leading-tight hover:text-primary">{i.products?.name}</Link>
-                    {i.variant_name && <div className="text-sm text-muted-foreground">{i.variant_name}</div>}
-                    <div className="text-xs text-muted-foreground">{i.variant_unit ?? i.products?.weight ?? i.products?.unit}</div>
-                    <div className="mt-auto flex items-end justify-between">
-                      <div className="text-lg font-bold">{formatINR(Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity)}</div>
-                      <div className="flex items-center gap-1 rounded-full border bg-secondary p-0.5">
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={!isCartItemAvailable(i)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity - 1 })}><Minus className="h-3.5 w-3.5" /></Button>
-                        <span className="min-w-6 text-center text-sm font-bold">{i.quantity}</span>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={!isCartItemAvailable(i) || i.quantity >= (i.variant_max_qty ?? i.products?.max_qty ?? 20)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity + 1 })}><Plus className="h-3.5 w-3.5" /></Button>
+              {items.map((i) => {
+                const isComboItem = Boolean(i.combo_id);
+                const isRiceItem = isRiceProductByClassification(i.products ?? i);
+                const displayName = i.combo_snapshot?.name ?? i.products?.name ?? "Combo";
+                const displayBrand = i.combo_snapshot ? "Combo" : (i.products?.brand ?? "");
+                const displayImage = i.variant_image_url || i.products?.image_url || i.combo_snapshot?.image_url || PLACEHOLDER_IMAGE;
+                const displayUnit = i.variant_unit ?? i.products?.weight ?? i.products?.unit ?? (isComboItem ? "combo" : "");
+                const displayPrice = Number(i.variant_price ?? i.products?.price ?? i.combo_snapshot?.offer_price ?? i.combo_snapshot?.price ?? 0);
+
+                return (
+                  <div key={i.id} className="flex gap-3 rounded-xl border bg-card p-3 shadow-card">
+                    <img
+                      src={displayImage}
+                      alt={displayName}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-24 w-24 rounded-lg object-cover"
+                      onError={(e: any) => {
+                        e.currentTarget.src = PLACEHOLDER_IMAGE;
+                      }}
+                    />
+                    {!isCartItemAvailable(i) && (
+                      <div className="absolute left-2 top-2 rounded-full bg-destructive px-2 py-1 text-[10px] font-semibold text-white">Out of stock</div>
+                    )}
+                    <div className="flex flex-1 flex-col">
+                      <div className="text-xs font-medium uppercase text-muted-foreground">{displayBrand}</div>
+                      {isComboItem ? (
+                        <div className="font-semibold leading-tight hover:text-primary">{displayName}</div>
+                      ) : (
+                        <Link to="/product/$slug" params={{ slug: i.products?.slug ?? "" }} className="font-semibold leading-tight hover:text-primary">{displayName}</Link>
+                      )}
+                      {i.variant_name && <div className="text-sm text-muted-foreground">{i.variant_name}</div>}
+                      <div className="text-xs text-muted-foreground">{displayUnit}</div>
+                      <div className="mt-auto flex items-end justify-between">
+                        <div className="text-lg font-bold">{formatINR(displayPrice * i.quantity)}</div>
+                        <div className="flex items-center gap-1 rounded-full border bg-secondary p-0.5">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" disabled={!isCartItemAvailable(i)} onClick={() => upd.mutate({ id: i.id, quantity: i.quantity - 1 })}><Minus className="h-3.5 w-3.5" /></Button>
+                          <span className="min-w-6 text-center text-sm font-bold">{i.quantity}</span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full"
+                            disabled={!isCartItemAvailable(i) || i.quantity >= (i.variant_max_qty ?? i.products?.max_qty ?? 20)}
+                            onClick={() => {
+                              const nextRestriction = getCartRestrictionForProduct(i.products ?? i, i.variant ?? null, items, Number(i.quantity ?? 0) + 1);
+                              if (nextRestriction) {
+                                toast.error(nextRestriction);
+                                return;
+                              }
+                              upd.mutate({ id: i.id, quantity: i.quantity + 1 });
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => del.mutate(i.id)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => del.mutate(i.id)}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <aside className="lg:sticky lg:top-24 lg:self-start">
@@ -121,7 +173,10 @@ function CartPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="font-medium">{formatINR(subtotal)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Delivery fee</span><span className="font-medium">{deliveryFee === 0 ? <span className="text-success">FREE</span> : formatINR(deliveryFee)}</span></div>
-                  {subtotal < 499 && subtotal > 0 && (<div className="rounded-md bg-accent/10 p-2 text-xs text-accent-foreground/80">Add {formatINR(499 - subtotal)} more for free delivery</div>)}
+                  {summary.hasCombo && (
+                    <div className="rounded-md bg-emerald-50 p-2 text-xs font-medium text-emerald-800">నేటి కాంబోతో ఉచిత డెలివరీ</div>
+                  )}
+                  {!summary.hasCombo && subtotal > 0 && subtotal < 499 && (<div className="rounded-md bg-accent/10 p-2 text-xs text-accent-foreground/80">Add {formatINR(499 - subtotal)} more for free delivery</div>)}
                 </div>
                 <div className="my-4 border-t" />
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span>{formatINR(total)}</span></div>
