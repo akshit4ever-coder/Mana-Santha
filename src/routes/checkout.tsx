@@ -11,7 +11,8 @@ import { useCart } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
 import { getOrderCutoffStatus } from "@/lib/delivery-cutoff";
-import { getCartItemValidationDetail, isProductAvailable, isVariantAvailable } from "@/lib/product-availability";
+import { getCartItemValidationDetail, isProductAvailable, isVariantAvailable, validateVariantAvailability } from "@/lib/product-availability";
+import { isComboCurrentlyValid, isComboStatusActive } from "@/lib/combo-status";
 import {
   getCartOrderSummary,
   LARGE_OIL_LIMIT_MESSAGE,
@@ -768,6 +769,9 @@ function Checkout() {
     return getOrderCutoffStatus(date).deliveryDate.toISOString();
   };
 
+  const isValidUuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+  const isComboCartItem = (item: any) => Boolean(item?.combo_id || item?.combo_snapshot);
+
   if (!user) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Please sign in or log in to place your order.</div></div>);
   if (items.length === 0) return (<div className="min-h-screen"><Header /><div className="py-20 text-center">Your cart is empty. <Link to="/" className="text-primary underline">Shop now</Link>.</div></div>);
   if (unavailableItems.length > 0) {
@@ -814,29 +818,188 @@ function Checkout() {
         throw new Error(LARGE_OIL_LIMIT_MESSAGE);
       }
 
-      const { data: currentProducts } = await supabase
-        .from("products")
-        .select("id, stock, status, is_active")
-        .in("id", items.map((i) => i.product_id));
+      const comboItems = items.filter((item) => Boolean(item.combo_id || item.combo_snapshot));
+      const productItems = items.filter((item) => !item.combo_id && !item.combo_snapshot);
+
+      const productIds = [...new Set(productItems.map((i) => i.product_id).filter((id): id is string => isValidUuid(id)))];
+      const { data: currentProducts } = productIds.length > 0
+        ? await supabase
+            .from("products")
+            .select("id, stock, status, is_active, product_variants(*)")
+            .in("id", productIds)
+        : { data: [] };
+
+      const comboIds = [...new Set(comboItems.map((item) => item.combo_id ?? item.combo_snapshot?.id).filter((id): id is string => isValidUuid(id)))];
+      const { data: currentCombos } = comboIds.length > 0
+        ? await supabase.from("combos").select("id, status, date_valid_from, date_valid_to, stock, available_quantity, max_quantity, name").in("id", comboIds)
+        : { data: [] };
 
       // Fetch variant stock for items that have a variant selected
-      const variantIds = items.map((i) => i.variant_id).filter(Boolean);
-      const { data: currentVariants } = variantIds.length > 0 ? await (supabase as any).from("product_variants").select("id, stock, status, is_active, max_qty").in("id", variantIds) : { data: [] };
+      const variantIds = [...new Set(productItems.map((i) => i.variant_id).filter((id): id is string => isValidUuid(id)))];
+      let currentVariants: any[] = [];
+      let variantFetchError: any = null;
+      if (variantIds.length > 0) {
+        const { data, error } = await (supabase as any)
+          .from("product_variants")
+          .select("id, product_id, stock, is_active, max_qty, name, unit, quantity_value")
+          .in("id", variantIds);
+
+        if (error) {
+          variantFetchError = error;
+          console.error("PRODUCT VARIANT FETCH ERROR", {
+            code: error?.code,
+            message: error?.message,
+            details: error?.details,
+            hint: error?.hint,
+            data,
+            variantIds,
+          });
+        } else {
+          currentVariants = data ?? [];
+        }
+      }
+
+      if (variantFetchError) {
+        toast.error("We couldn't verify product availability right now. Please try again.");
+        setSubmitting(false);
+        return;
+      }
 
       const insufficientStock = items.find((item) => {
+        if (item.combo_id || item.combo_snapshot) {
+          const combo = currentCombos?.find((c: any) => c.id === (item.combo_id ?? item.combo_snapshot?.id));
+          const comboSnapshot = item.combo_snapshot ?? {};
+          const sourceCombo = {
+            id: item.combo_id ?? comboSnapshot.id ?? null,
+            status: combo?.status ?? comboSnapshot.status ?? "active",
+            date_valid_from: combo?.date_valid_from ?? comboSnapshot.date_valid_from ?? null,
+            date_valid_to: combo?.date_valid_to ?? comboSnapshot.date_valid_to ?? null,
+            stock: combo?.stock ?? comboSnapshot.stock ?? null,
+            available_quantity: combo?.available_quantity ?? comboSnapshot.available_quantity ?? combo?.stock ?? comboSnapshot.stock ?? null,
+            name: combo?.name ?? comboSnapshot.name ?? "Combo",
+          };
+
+          const requestedQty = Number(item.quantity ?? 0);
+          const comboActive = isComboStatusActive(sourceCombo.status);
+          const comboValidDate = isComboCurrentlyValid(sourceCombo);
+          const availableQty = Number(sourceCombo.available_quantity ?? sourceCombo.stock ?? Number.POSITIVE_INFINITY);
+
+          if (!sourceCombo.id) {
+            console.error("Checkout rejected combo item due to missing combo id:", { cartItemId: item.id, item, sourceCombo });
+            return true;
+          }
+
+          if (!comboActive) {
+            console.error("Checkout rejected combo item because combo is inactive:", { cartItemId: item.id, comboId: sourceCombo.id, comboName: sourceCombo.name, status: sourceCombo.status, available: false, reason: "combo_inactive" });
+            return true;
+          }
+
+          if (!comboValidDate) {
+            console.error("Checkout rejected combo item because combo date is invalid:", { cartItemId: item.id, comboId: sourceCombo.id, comboName: sourceCombo.name, start: sourceCombo.date_valid_from, end: sourceCombo.date_valid_to, available: false, reason: "combo_date_invalid" });
+            return true;
+          }
+
+          if (Number.isFinite(availableQty) && requestedQty > availableQty) {
+            console.error("Checkout rejected combo item because requested quantity exceeds combo quantity:", { cartItemId: item.id, comboId: sourceCombo.id, comboName: sourceCombo.name, requestedQty, availableQty, available: false, reason: "combo_quantity_exceeded" });
+            return true;
+          }
+
+          return false;
+        }
+
         const product = currentProducts?.find((p: any) => p.id === item.product_id);
 
         if (item.variant_id) {
           const variant = currentVariants?.find((v: any) => v.id === item.variant_id);
-          return !variant || !product || !isVariantAvailable(product, variant) || Number(variant.stock ?? 0) < Number(item.quantity ?? 0);
+          const detail = getCartItemValidationDetail(item);
+
+          if (!product) {
+            console.error("Checkout rejected item because product is missing:", {
+              cartItemId: item.id,
+              productId: item.product_id,
+              variantId: item.variant_id,
+            });
+            return true;
+          }
+
+          if (!variant) {
+            console.error("Checkout rejected item because the variant no longer exists:", {
+              cartItemId: item.id,
+              productId: item.product_id,
+              variantId: item.variant_id,
+              productName: item.products?.name ?? product?.name ?? detail.productName,
+              quantity: Number(item.quantity ?? 0),
+              available: false,
+              reason: "variant_missing",
+            });
+            return true;
+          }
+
+          if (variant.product_id && String(variant.product_id) !== String(item.product_id)) {
+            console.error("Checkout rejected item because the variant belongs to a different product:", {
+              cartItemId: item.id,
+              productId: item.product_id,
+              variantId: item.variant_id,
+              variantProductId: variant.product_id,
+              available: false,
+              reason: "variant_product_mismatch",
+            });
+            return true;
+          }
+
+          const variantValidation = validateVariantAvailability(product, variant, Number(item.quantity ?? 0));
+          if (variantValidation.status !== "available") {
+            console.error("Checkout rejected item due to variant validation:", {
+              cartItemId: item.id,
+              productId: item.product_id,
+              variantId: item.variant_id,
+              productName: item.products?.name ?? product?.name ?? detail.productName,
+              variantName: item.variant_name ?? variant?.name ?? detail.variantName,
+              quantity: Number(item.quantity ?? 0),
+              productStock: Number(product?.stock ?? 0),
+              productStatus: product?.status ?? detail.productStatus,
+              variantStock: Number(variant?.stock ?? 0),
+              variantIsActive: variant?.is_active ?? detail.variantIsActive,
+              available: false,
+              reason: variantValidation.status === "missing" ? "variant_missing" : variantValidation.reason,
+              rawProduct: product,
+              rawVariant: variant,
+            });
+            return true;
+          }
+          return false;
         }
 
-        return !product || !isProductAvailable(product) || Number(product.stock ?? 0) < Number(item.quantity ?? 0);
+        const detail = getCartItemValidationDetail(item);
+        const isInvalid = !product || !isProductAvailable(product) || Number(product.stock ?? 0) < Number(item.quantity ?? 0);
+        if (isInvalid) {
+          console.error("Checkout rejected item due to stock validation:", {
+            cartItemId: item.id,
+            productId: item.product_id,
+            variantId: item.variant_id ?? null,
+            productName: item.products?.name ?? product?.name ?? detail.productName,
+            variantName: item.variant_name ?? detail.variantName ?? null,
+            quantity: Number(item.quantity ?? 0),
+            productStock: Number(product?.stock ?? 0),
+            productStatus: product?.status ?? detail.productStatus,
+            variantStock: Number(item.variant_stock ?? 0),
+            variantIsActive: item.variant?.is_active ?? detail.variantIsActive,
+            available: false,
+            reason: !product ? "product_missing" : Number(product.stock ?? 0) < Number(item.quantity ?? 0) ? "insufficient_quantity" : "product_inactive_or_unavailable",
+            rawProduct: product,
+          });
+        }
+        return isInvalid;
       });
 
       if (insufficientStock) {
-        const productName = insufficientStock.products?.name || "One or more products";
-        toast.error(`${productName} is out of stock or insufficient quantity available`);
+        const isCombo = Boolean(insufficientStock.combo_id || insufficientStock.combo_snapshot);
+        const productName = insufficientStock.products?.name || insufficientStock.name || (isCombo ? (insufficientStock.combo_snapshot?.name || "Combo") : "One or more products");
+        const detail = getCartItemValidationDetail(insufficientStock);
+        const variantName = detail.variantName ? ` / ${detail.variantName}` : "";
+        const displayName = `${productName}${variantName}`;
+        console.error("Checkout item validation result:", { ...detail, displayName, reason: detail.availabilityReason, isCombo });
+        toast.error(`${displayName} is currently unavailable or the requested quantity exceeds available stock.`);
         setSubmitting(false);
         return;
       }
@@ -923,10 +1086,13 @@ function Checkout() {
       const orderItems: any[] = [];
       const comboSnapshotsToInsert: any[] = [];
       for (const i of items) {
-        if (i.combo_id) {
-          // validate combo availability and price server-side
-          const { data: combo } = await supabase.from("combos").select("*").eq("id", i.combo_id).maybeSingle();
-          if (!combo || combo.status !== "active") throw new Error("Combo is no longer available");
+        if (isComboCartItem(i)) {
+          const comboId = i.combo_id ?? i.combo_snapshot?.id ?? null;
+          if (!comboId) throw new Error("Combo item is missing its combo reference");
+
+          const { data: combo } = await supabase.from("combos").select("*").eq("id", comboId).maybeSingle();
+          if (!combo) throw new Error("Combo is no longer available");
+          if (combo.status !== "active") throw new Error("Combo is no longer available");
           if (combo.stock != null && Number(combo.stock) < Number(i.quantity)) throw new Error("Combo is sold out or insufficient stock");
 
           const price = Number(i.combo_snapshot?.offer_price ?? i.combo_snapshot?.price ?? combo.offer_price ?? combo.price ?? 0);
@@ -943,25 +1109,37 @@ function Checkout() {
             subtotal: Number(price) * Number(i.quantity),
           });
 
-          comboSnapshotsToInsert.push({ order_id: order.id, combo_id: i.combo_id, snapshot: i.combo_snapshot ?? combo });
+          comboSnapshotsToInsert.push({ order_id: order.id, combo_id: comboId, snapshot: i.combo_snapshot ?? combo });
         } else {
+          const normalizedProductId = isValidUuid(i.product_id) ? i.product_id : null;
+          const normalizedVariantId = isValidUuid(i.variant_id) ? i.variant_id : null;
+          const linePrice = Number(i.variant_price ?? i.products?.price ?? 0);
+
           orderItems.push({
             order_id: order.id,
-            product_id: i.product_id,
-            variant_id: i.variant_id ?? null,
+            product_id: normalizedProductId,
+            variant_id: normalizedVariantId,
             name: i.products?.name ?? "",
             variant_name: i.variant_name ?? null,
             image_url: i.variant_image_url ?? i.products?.image_url,
             unit: i.variant_unit ?? i.products?.unit,
-            price: i.variant_price ?? i.products?.price,
+            price: linePrice,
             quantity: i.quantity,
-            subtotal: Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity,
+            subtotal: linePrice * i.quantity,
           });
         }
       }
 
       const { error: ie } = await (supabase as any).from("order_items").insert(orderItems as any[]);
-      if (ie) throw ie;
+      if (ie) {
+        console.error("ORDER_ITEMS INSERT ERROR", {
+          code: ie?.code,
+          message: ie?.message,
+          details: ie?.details,
+          hint: ie?.hint,
+        });
+        throw ie;
+      }
 
       // insert combo snapshots for order history
       if (comboSnapshotsToInsert.length > 0) {
@@ -983,10 +1161,13 @@ function Checkout() {
           deliveryAddress: [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean).join(", "),
           deliveryDate: deliveryDate,
           orderItems: items.map((item) => {
-            const unitPrice = Number(item.variant_price ?? item.products?.price ?? 0);
-            const sizeLabel = [item.variant_name, item.variant_unit ?? item.products?.unit ?? item.products?.weight].filter(Boolean).join(" ").trim();
+            const isComboItem = isComboCartItem(item);
+            const unitPrice = Number(item.variant_price ?? item.products?.price ?? item.combo_snapshot?.offer_price ?? item.combo_snapshot?.price ?? 0);
+            const sizeLabel = isComboItem
+              ? [item.combo_snapshot?.name ?? "Combo"].filter(Boolean).join(" ").trim()
+              : [item.variant_name, item.variant_unit ?? item.products?.unit ?? item.products?.weight].filter(Boolean).join(" ").trim();
             return {
-              name: item.products?.name || "Product",
+              name: isComboItem ? (item.combo_snapshot?.name ?? "Combo") : (item.products?.name || "Product"),
               size: sizeLabel || undefined,
               quantity: item.quantity,
               price: unitPrice,
@@ -1176,12 +1357,18 @@ function Checkout() {
             <div className="rounded-xl border bg-card p-5 shadow-card">
               <h3 className="mb-4 text-lg font-bold">Order Summary</h3>
               <div className="mb-3 max-h-56 space-y-2 overflow-auto text-sm">
-                {items.map((i) => (
-                  <div key={i.id} className="flex justify-between gap-2">
-                    <span className="line-clamp-1">{i.products?.name} {i.variant_name ? <span className="text-muted-foreground">— {i.variant_name}</span> : null} <span className="text-muted-foreground">× {i.quantity}</span></span>
-                    <span className="font-medium">{formatINR(Number(i.variant_price ?? i.products?.price ?? 0) * i.quantity)}</span>
-                  </div>
-                ))}
+                {items.map((i) => {
+                  const isComboItem = Boolean(i.combo_id || i.combo_snapshot);
+                  const displayName = isComboItem ? (i.combo_snapshot?.name ?? "Combo") : (i.products?.name ?? "Product");
+                  const linePrice = Number(i.variant_price ?? i.products?.price ?? i.combo_snapshot?.offer_price ?? i.combo_snapshot?.price ?? 0);
+
+                  return (
+                    <div key={i.id} className="flex justify-between gap-2">
+                      <span className="line-clamp-1">{displayName} {i.variant_name ? <span className="text-muted-foreground">— {i.variant_name}</span> : null} <span className="text-muted-foreground">× {i.quantity}</span></span>
+                      <span className="font-medium">{formatINR(linePrice * i.quantity)}</span>
+                    </div>
+                  );
+                })}
               </div>
               <div className="space-y-2 border-t pt-3 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatINR(subtotal)}</span></div>

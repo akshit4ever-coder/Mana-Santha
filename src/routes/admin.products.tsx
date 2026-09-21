@@ -1032,7 +1032,18 @@ function ProductForm({
 
                 setImageError(null);
                 setImageFile(file);
-                setImagePreview(URL.createObjectURL(file));
+                const _url = URL.createObjectURL(file);
+                if (import.meta.env.DEV) {
+                  console.log("[BLOB CREATED]", {
+                    url: _url,
+                    source: "admin.products",
+                    fileName: file.name,
+                    fileType: file.type,
+                    size: file.size,
+                    time: new Date().toISOString(),
+                  });
+                }
+                setImagePreview(_url);
               }}
             />
             <Button type="button" variant="outline" className="mb-2" onClick={() => fileInputRef.current?.click()}>
@@ -1112,7 +1123,19 @@ function ProductForm({
                       setVariantFiles((prev) => ({ ...prev, [idx]: file ?? null }));
                       // also set preview URL immediately
                       if (file) {
-                        setP((prev: any) => ({ ...prev, product_variants: (prev.product_variants ?? []).map((it: any, i: number) => i === idx ? { ...it, image_url: URL.createObjectURL(file) } : it) }));
+                        const _url = URL.createObjectURL(file);
+                        if (import.meta.env.DEV) {
+                          console.log("[BLOB CREATED]", {
+                            url: _url,
+                            source: "admin.products.variant_image",
+                            index: idx,
+                            fileName: file.name,
+                            fileType: file.type,
+                            size: file.size,
+                            time: new Date().toISOString(),
+                          });
+                        }
+                        setP((prev: any) => ({ ...prev, product_variants: (prev.product_variants ?? []).map((it: any, i: number) => i === idx ? { ...it, image_url: _url } : it) }));
                       }
                     }} />
                     <div className="flex gap-2 mt-2">

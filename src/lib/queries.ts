@@ -983,6 +983,9 @@ export function useAddComboToCart(userId?: string) {
           name: combo.name,
           price: combo.price,
           offer_price: combo.offer_price,
+          status: combo.status,
+          date_valid_from: combo.date_valid_from,
+          date_valid_to: combo.date_valid_to,
           image_url: combo.image_url || "/src/assets/combos/daily_combo_poster.png",
           items: [],
         };
@@ -1017,6 +1020,9 @@ export function useAddComboToCart(userId?: string) {
           name: combo.name,
           price: combo.price,
           offer_price: combo.offer_price,
+          status: combo.status,
+          date_valid_from: combo.date_valid_from,
+          date_valid_to: combo.date_valid_to,
           image_url: combo.image_url || "/src/assets/combos/daily_combo_poster.png",
         };
         const insertPayload: any = { user_id: authUser.id, combo_id: combo.id, combo_snapshot: snapshot, quantity };
@@ -1038,7 +1044,15 @@ export const useOrders = (userId?: string) =>
         .select("*, order_items(*)")
         .eq("user_id", userId!)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("ORDER_ITEMS FETCH ERROR", {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+        });
+        throw error;
+      }
       return data;
     },
   });

@@ -130,7 +130,17 @@ export async function compressImageFile(file: File): Promise<File> {
 
   const quality = file.type === "image/png" ? 0.92 : 0.82;
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, file.type, quality);
+    canvas.toBlob((b) => {
+      if (import.meta.env.DEV) {
+        console.log("[BLOB CREATED FROM CANVAS]", {
+          blob: b,
+          type: b?.type,
+          size: b?.size,
+          time: new Date().toISOString(),
+        });
+      }
+      resolve(b);
+    }, file.type, quality);
   });
 
   imageBitmap.close();

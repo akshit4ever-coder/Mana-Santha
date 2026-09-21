@@ -114,7 +114,15 @@ function AdminOrders() {
 
       const { data, error } = await query.order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("ORDER_ITEMS FETCH ERROR", {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+        });
+        throw error;
+      }
       return (data ?? []).map((order: any) => ({
         ...order,
         order_items: Array.isArray(order.order_items) ? order.order_items : [],

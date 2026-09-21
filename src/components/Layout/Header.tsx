@@ -1,6 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Search, ShoppingCart, User, Heart, LogOut, LayoutDashboard, Package } from "lucide-react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/UI/button";
 import LogoIcon from "@/assets/ManaSantha_Logo.jpeg";
 import TitleImg from "@/assets/Mana Santa Title.jpg";
@@ -16,9 +15,9 @@ export function Header() {
   const { data: cart } = useCart(user?.id);
   const { data: wishlist } = useWishlist(user?.id);
   const navigate = useNavigate();
+  const location = useLocation();
   const [q, setQ] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const cartCount = cart?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? 0;
   const wishlistCount = wishlist?.length ?? 0;
   const cutoffStatus = getOrderCutoffStatus();
@@ -31,8 +30,8 @@ export function Header() {
   };
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -180,15 +179,15 @@ export function Header() {
         </nav>
       </div>
 
-      {mounted && createPortal(
-        <div className={`fixed inset-0 z-[100] ${isMobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[100]">
           <div
-            className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0"}`}
+            className="absolute inset-0 bg-black/50 transition-opacity duration-300 opacity-100"
             onClick={() => setIsMobileMenuOpen(false)}
           />
 
           <div
-            className={`absolute inset-y-0 right-0 z-[101] h-full w-[85%] max-w-sm overflow-y-auto rounded-l-3xl bg-white shadow-[0_20px_60px_rgba(10,22,15,0.22)] ring-1 ring-black/5 transition-transform duration-300 ease-out ${isMobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}
+            className="absolute inset-y-0 right-0 z-[101] h-full w-[85%] max-w-sm overflow-y-auto rounded-l-3xl bg-white shadow-[0_20px_60px_rgba(10,22,15,0.22)] ring-1 ring-black/5 transition-transform duration-300 ease-out translate-x-0"
           >
             <div className="flex items-center justify-between border-b border-[#e6eadf] p-4">
               <div className="flex items-center gap-2">
@@ -238,8 +237,7 @@ export function Header() {
               )}
             </nav>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </header>
   );

@@ -67,3 +67,22 @@ test('large oil restriction uses variant quantity metadata and ignores smaller o
   const allowed = getCartRestrictionMessage({ product: oilProduct, variant: smallOilVariant, cartItems, quantity: 1 });
   assert.equal(allowed, null);
 });
+
+test('rice detection does not misclassify rice-bran oil as rice when the actual category is oil', () => {
+  const riceBranOilProduct = {
+    category_name: 'Edible Oils',
+    subcategory_name: 'Rice Bran Oil',
+    categories: { name: 'Edible Oils', slug: 'edible-oils' },
+    subcategories: { name: 'Rice Bran Oil', slug: 'rice-bran-oil' },
+    name: 'Freedom Rice Bran Oil 5 L',
+    brand: 'Freedom',
+  };
+
+  assert.equal(isRiceProductByClassification(riceBranOilProduct), false);
+  assert.equal(getCartRestrictionMessage({
+    product: riceBranOilProduct,
+    variant: { id: 'v-5l', name: '5 L', unit: 'L', quantity_value: 5 },
+    cartItems: [],
+    quantity: 1,
+  }), null);
+});

@@ -1,3 +1,5 @@
+import { isComboCurrentlyValid, isComboStatusActive } from "./combo-status.ts";
+
 export function normalizeProductStatus(status?: string | null): string {
   return String(status ?? "").trim().toLowerCase();
 }
@@ -21,6 +23,45 @@ export function isParentProductAvailable(product?: any): boolean {
   return Number(product.stock ?? 0) > 0;
 }
 
+export type VariantValidationResult =
+  | { status: "available"; variant: any }
+  | { status: "unavailable"; reason: "out_of_stock" | "inactive" | "quantity_exceeded"; variant?: any }
+  | { status: "missing"; reason: "variant_not_found" }
+  | { status: "error"; reason: "variant_fetch_error"; error: unknown };
+
+export function validateVariantAvailability(product?: any, variant?: any, requestedQuantity = 1): VariantValidationResult {
+  const requestedQty = Number(requestedQuantity ?? 1);
+
+  if (!product) {
+    return { status: "missing", reason: "variant_not_found" };
+  }
+
+  if (!variant) {
+    return { status: "missing", reason: "variant_not_found" };
+  }
+
+  const parentStatus = normalizeProductStatus(product.status);
+  const parentIsActive = parentStatus === "" || parentStatus === "active";
+  if (!parentIsActive || product.is_active === false) {
+    return { status: "unavailable", reason: "inactive", variant };
+  }
+
+  if ((variant.is_active ?? true) === false) {
+    return { status: "unavailable", reason: "inactive", variant };
+  }
+
+  const stock = Number(variant.stock ?? 0);
+  if (stock <= 0) {
+    return { status: "unavailable", reason: "out_of_stock", variant };
+  }
+
+  if (requestedQty > stock) {
+    return { status: "unavailable", reason: "quantity_exceeded", variant };
+  }
+
+  return { status: "available", variant };
+}
+
 export function isVariantAvailable(product?: any, variant?: any): boolean {
   if (!product) return false;
 
@@ -28,7 +69,10 @@ export function isVariantAvailable(product?: any, variant?: any): boolean {
     return isParentProductAvailable(product);
   }
 
-  if (!isParentProductAvailable(product)) return false;
+  const parentStatus = normalizeProductStatus(product.status);
+  const parentIsActive = parentStatus === "" || parentStatus === "active";
+  if (!parentIsActive || product.is_active === false) return false;
+
   if ((variant.is_active ?? true) === false) return false;
 
   const stock = Number(variant.stock ?? 0);
@@ -132,15 +176,45 @@ export function getCartItemValidationDetail(item?: any) {
   }
 
   if (item.combo_id || item.combo_snapshot) {
-    const comboStatus = normalizeProductStatus(item.combo_snapshot?.status ?? "active");
-    const comboIsActive = comboStatus === "" || comboStatus === "active";
-    const comboStock = Number(item.combo_snapshot?.stock ?? item.stock ?? 0);
-    if (!comboIsActive) {
+    const comboSnapshot = item.combo_snapshot ?? {};
+    const comboRecord = {
+      id: item.combo_id ?? comboSnapshot.id ?? null,
+      status: comboSnapshot.status ?? "active",
+      date_valid_from: comboSnapshot.date_valid_from ?? null,
+      date_valid_to: comboSnapshot.date_valid_to ?? null,
+      stock: comboSnapshot.stock ?? null,
+      available_quantity: comboSnapshot.available_quantity ?? comboSnapshot.stock ?? null,
+    };
+
+    if (!comboRecord.id) {
+      return { ...base, isAvailable: false, availabilityReason: "combo_missing" };
+    }
+
+    if (!isComboStatusActive(comboRecord.status)) {
       return { ...base, isAvailable: false, availabilityReason: "combo_inactive" };
     }
-    if (comboStock > 0 && Number(item.quantity ?? 0) > comboStock) {
-      return { ...base, isAvailable: false, availabilityReason: "quantity_exceeds_stock" };
+
+    if (!isComboCurrentlyValid(comboRecord)) {
+      const start = comboRecord.date_valid_from;
+      const end = comboRecord.date_valid_to;
+      const today = new Date();
+      const fromDate = start ? new Date(start) : null;
+      const toDate = end ? new Date(end) : null;
+      if (fromDate && fromDate > today) {
+        return { ...base, isAvailable: false, availabilityReason: "combo_not_started" };
+      }
+      if (toDate && toDate < today) {
+        return { ...base, isAvailable: false, availabilityReason: "combo_expired" };
+      }
+      return { ...base, isAvailable: false, availabilityReason: "combo_date_invalid" };
     }
+
+    const quantity = Number(item.quantity ?? 0);
+    const availableQuantity = Number(comboRecord.available_quantity ?? Number.POSITIVE_INFINITY);
+    if (Number.isFinite(availableQuantity) && quantity > availableQuantity) {
+      return { ...base, isAvailable: false, availabilityReason: "combo_quantity_exceeded" };
+    }
+
     return { ...base, isAvailable: true, availabilityReason: "ok" };
   }
 

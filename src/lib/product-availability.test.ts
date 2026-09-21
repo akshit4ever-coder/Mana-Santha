@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getCartItemAvailabilityState, getCartItemValidationDetail, isParentProductAvailable, isProductAvailable, isVariantAvailable, normalizeProductStatus } from './product-availability.ts';
+import { getCartItemAvailabilityState, getCartItemValidationDetail, isParentProductAvailable, isProductAvailable, isVariantAvailable, normalizeProductStatus, validateVariantAvailability } from './product-availability.ts';
 import { getOrderCutoffStatus } from './delivery-cutoff.ts';
 
 test('normalizeProductStatus lowercases and trims status', () => {
@@ -49,6 +49,31 @@ test('variant availability uses parent override and variant stock independently'
 
   assert.equal(isProductAvailable(productInactive), false);
   assert.equal(isVariantAvailable(productInactive, productInactive.product_variants[0]), false);
+});
+
+test('variant stock controls availability even when parent product stock is zero', () => {
+  const product = {
+    id: 'p-variant-zero-parent',
+    status: 'active',
+    is_active: true,
+    stock: 0,
+    product_variants: [
+      { id: 'v-1', stock: 20, status: 'active', is_active: true, name: '250g' },
+      { id: 'v-2', stock: 0, status: 'active', is_active: true, name: '500g' },
+    ],
+  };
+
+  assert.equal(isProductAvailable(product), true);
+  assert.equal(isVariantAvailable(product, product.product_variants[0]), true);
+  assert.equal(isVariantAvailable(product, product.product_variants[1]), false);
+  assert.equal(getCartItemValidationDetail({
+    id: 'cart-variant-zero-parent',
+    product_id: product.id,
+    variant_id: 'v-1',
+    quantity: 1,
+    products: product,
+    variant: product.product_variants[0],
+  }).isAvailable, true);
 });
 
 test('simple product with no variants and active stock remains available', () => {
@@ -126,6 +151,20 @@ test('variant fetch errors do not mark items unavailable, while confirmed missin
 
   assert.equal(getCartItemAvailabilityState(missingVariantItem).isAvailable, false);
   assert.equal(getCartItemAvailabilityState(missingVariantItem).isMissingVariant, true);
+});
+
+test('variant validation separates fetch errors from genuine stock issues', () => {
+  const product = { id: 'p-3', stock: 50, status: 'active', is_active: true };
+  const activeVariant = { id: 'v-100', product_id: 'p-3', stock: 50, is_active: true, max_qty: 10, name: '50 ml' };
+  const soldOutVariant = { id: 'v-101', product_id: 'p-3', stock: 0, is_active: true, max_qty: 10, name: '100 ml' };
+  const inactiveVariant = { id: 'v-102', product_id: 'p-3', stock: 10, is_active: false, max_qty: 10, name: '250 ml' };
+
+  assert.deepEqual(validateVariantAvailability(product, activeVariant, 1), { status: 'available', variant: activeVariant });
+  assert.deepEqual(validateVariantAvailability(product, soldOutVariant, 1), { status: 'unavailable', reason: 'out_of_stock', variant: soldOutVariant });
+  assert.deepEqual(validateVariantAvailability(product, inactiveVariant, 1), { status: 'unavailable', reason: 'inactive', variant: inactiveVariant });
+  assert.deepEqual(validateVariantAvailability(product, undefined, 1), { status: 'missing', reason: 'variant_not_found' });
+  assert.deepEqual(validateVariantAvailability(product, activeVariant, 100), { status: 'unavailable', reason: 'quantity_exceeded', variant: activeVariant });
+  assert.deepEqual(validateVariantAvailability(product, activeVariant, 1), { status: 'available', variant: activeVariant });
 });
 
 test('combo cart items are available when the combo snapshot is active even without a product row', () => {

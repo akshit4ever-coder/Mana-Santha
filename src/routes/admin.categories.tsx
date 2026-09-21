@@ -406,7 +406,18 @@ function CategoryForm({
               }
               setImageError(null);
               setImageFile(file);
-              setImagePreview(URL.createObjectURL(file));
+              const _url = URL.createObjectURL(file);
+              if (import.meta.env.DEV) {
+                console.log("[BLOB CREATED]", {
+                  url: _url,
+                  source: "admin.categories",
+                  fileName: file.name,
+                  fileType: file.type,
+                  size: file.size,
+                  time: new Date().toISOString(),
+                });
+              }
+              setImagePreview(_url);
             }} />
             <Button type="button" variant="outline" className="mb-2" onClick={() => fileInputRef.current?.click()}>{imagePreview ? "Replace Image" : "Upload Image"}</Button>
             {imageError && <p className="mb-2 text-sm text-destructive">{imageError}</p>}

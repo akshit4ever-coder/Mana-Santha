@@ -40,8 +40,17 @@ function getProductClassificationText(product: any): string {
 export function isRiceProductByClassification(product: any): boolean {
   if (!product) return false;
 
-  const classificationText = getProductClassificationText(product);
-  return /(^|\s)rice(\s|$)|arisi|biyyam|basmati|sona masuri|pl rice|masoori|rice\b|\brice\b/.test(classificationText);
+  const classificationEntries = getProductClassificationStrings(product);
+  const hasOilSignal = classificationEntries.some((entry) => /(^|\s)oil(\s|$)|edible oils|groundnut|sunflower|mustard|cooking oil/.test(entry));
+  const hasRiceSignal = classificationEntries.some((entry) => /(^|\s)rice(\s|$)|arisi|biyyam|basmati|sona masuri|pl rice|masoori/.test(entry));
+
+  if (hasOilSignal) return false;
+  if (hasRiceSignal) return true;
+
+  const rawProductText = normalizeText(product?.name ?? "");
+  if (!rawProductText || /\boil\b/.test(rawProductText)) return false;
+
+  return /(^|\s)rice(\s|$)|arisi|biyyam|basmati|sona masuri|pl rice|masoori/.test(rawProductText);
 }
 
 function normalizeOilUnitText(value: unknown): string {
