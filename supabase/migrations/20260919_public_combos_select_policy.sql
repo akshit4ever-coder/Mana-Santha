@@ -12,8 +12,6 @@ CREATE POLICY "Anyone views active combos"
   FOR SELECT
   USING (
     lower(trim(status)) = 'active'
-    AND (date_valid_from IS NULL OR date_valid_from <= current_date)
-    AND (date_valid_to IS NULL OR date_valid_to >= current_date)
   );
 
 CREATE POLICY "Admins manage combos"
@@ -32,8 +30,6 @@ CREATE POLICY "Anyone views combo items for active combos"
       FROM public.combos c
       WHERE c.id = combo_items.combo_id
         AND lower(trim(c.status)) = 'active'
-        AND (c.date_valid_from IS NULL OR c.date_valid_from <= current_date)
-        AND (c.date_valid_to IS NULL OR c.date_valid_to >= current_date)
     )
   );
 

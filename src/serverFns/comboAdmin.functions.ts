@@ -23,29 +23,8 @@ export const upsertCombo = createServerFn({ method: "POST" })
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "") || null;
 
-      if (normalizedStatus === "active") {
-        const editingComboId = payload.id ?? null;
-        let overlapQuery = supabaseAdmin
-          .from("combos")
-          .select("id, status, date_valid_from, date_valid_to");
-
-        if (editingComboId) {
-          overlapQuery = overlapQuery.neq("id", editingComboId);
-        }
-
-        const { data: existingCombos, error: existingErr } = await overlapQuery;
-
-        if (existingErr) throw existingErr;
-
-        const overlappingCombo = (existingCombos || []).find((combo: any) => {
-          if (normalizeComboStatus(combo.status) !== "active") return false;
-          return rangesOverlap(payload.date_valid_from ?? null, payload.date_valid_to ?? null, combo.date_valid_from ?? null, combo.date_valid_to ?? null);
-        });
-
-        if (overlappingCombo) {
-          throw new Error("This active combo overlaps another active date range. Only one active combo can be valid on the same date.");
-        }
-      }
+      // Allow multiple active combos to overlap in date ranges.
+      // Removed previous restriction that prevented overlapping active combos.
 
       let comboId = payload.id;
       if (comboId) {

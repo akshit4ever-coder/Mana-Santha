@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/UI/textarea";
 import { Package, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { PLACEHOLDER_IMAGE } from "@/lib/product-storage";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
@@ -298,7 +299,24 @@ function OrdersPage() {
                       <div className="flex flex-wrap gap-2">
                         {o.order_items?.slice(0, 4).map((it: any) => (
                           <div key={it.id} className="flex items-center gap-2 rounded-lg border bg-secondary/40 px-2 py-1 text-xs">
-                            <img src={it.image_url ?? ""} alt="" className="h-8 w-8 rounded object-cover" />
+                            <img
+                              src={it.image_url || PLACEHOLDER_IMAGE}
+                              alt={it.name || ""}
+                              className="h-8 w-8 rounded object-cover"
+                              onError={(e) => {
+                                // Replace missing or failing images with placeholder and log for diagnosis
+                                try {
+                                  const img = e.currentTarget as HTMLImageElement;
+                                  if (img && img.src && !img.src.includes(PLACEHOLDER_IMAGE)) {
+                                    if (import.meta.env.DEV) console.warn("Product image failed to load:", img.src, "— falling back to placeholder.");
+                                    img.onerror = null;
+                                    img.src = PLACEHOLDER_IMAGE;
+                                  }
+                                } catch (_) {
+                                  // ignore
+                                }
+                              }}
+                            />
                             <div className="min-w-0">
                               <div className="line-clamp-1 max-w-40 font-medium">{it.name}</div>
                               <div className="text-muted-foreground">

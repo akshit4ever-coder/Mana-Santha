@@ -13,6 +13,12 @@ BEGIN
     RAISE EXCEPTION 'Order item quantity must be greater than zero';
   END IF;
 
+  -- Allow combo order items through without product/variant validation.
+  -- Combo items are inserted with `unit = 'combo'` and have NULL product_id/variant_id.
+  IF LOWER(TRIM(COALESCE(NEW.unit, ''))) = 'combo' THEN
+    RETURN NEW;
+  END IF;
+
   IF NEW.variant_id IS NOT NULL THEN
         SELECT p.status AS product_status,
           p.is_active AS product_is_active,

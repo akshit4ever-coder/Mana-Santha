@@ -769,12 +769,31 @@ function ProductForm({
             }
           }
 
+          // Sanitize image URLs: never persist blob: URLs
+          const sanitizeImageUrl = (url: string | null | undefined) => {
+            if (!url) return null;
+            try {
+              if (String(url).startsWith("blob:")) {
+                if (import.meta.env.DEV) console.warn("Refusing to persist blob URL for product image", { url, productName: trimmedName });
+                return null;
+              }
+            } catch (e) {
+              return null;
+            }
+            return url;
+          };
+
+          const sanitizedVariants = (variants || []).map((v: any, idx: number) => ({
+            ...v,
+            image_url: sanitizeImageUrl(v.image_url ?? null),
+          }));
+
           onSave({
             ...p,
             name: trimmedName,
             slug: trimmedSlug,
-            image_url: finalImageUrl,
-            product_variants: variants,
+            image_url: sanitizeImageUrl(finalImageUrl),
+            product_variants: sanitizedVariants,
             variant_option_name: p.variant_option_name || "Size",
             category_name: categories.find((c: any) => c.id === p.category_id)?.name ?? p.category_name ?? null,
             subcategory_name: subcategories.find((s: any) => s.id === p.subcategory_id)?.name ?? p.subcategory_name ?? null,

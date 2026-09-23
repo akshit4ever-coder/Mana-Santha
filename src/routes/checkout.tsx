@@ -1130,7 +1130,22 @@ function Checkout() {
         }
       }
 
-      const { error: ie } = await (supabase as any).from("order_items").insert(orderItems as any[]);
+      if (import.meta.env.DEV) {
+        console.log("ORDER_ITEMS INSERT PAYLOAD", orderItems);
+      }
+
+      const insertOp = (supabase as any).from("order_items").insert(orderItems as any[]);
+      // attempt to select inserted rows for logging without changing server-side schema
+      let insertedData: any = null;
+      let ie: any = null;
+      try {
+        const res = await insertOp.select("order_id,product_id,variant_id,name,variant_name,image_url,unit,price,quantity,subtotal");
+        insertedData = res.data;
+        ie = res.error;
+      } catch (err: any) {
+        ie = err;
+      }
+
       if (ie) {
         console.error("ORDER_ITEMS INSERT ERROR", {
           code: ie?.code,
@@ -1138,8 +1153,12 @@ function Checkout() {
           details: ie?.details,
           hint: ie?.hint,
         });
+        // also log any returned data for diagnosis
+        if (import.meta.env.DEV) console.log("ORDER_ITEMS INSERT RETURNED DATA", insertedData);
         throw ie;
       }
+
+      if (import.meta.env.DEV) console.log("ORDER_ITEMS INSERTED", insertedData);
 
       // insert combo snapshots for order history
       if (comboSnapshotsToInsert.length > 0) {

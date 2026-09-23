@@ -1039,11 +1039,9 @@ export const useOrders = (userId?: string) =>
     queryKey: ["orders", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*, order_items(*)")
-        .eq("user_id", userId!)
-        .order("created_at", { ascending: false });
+      const query = supabase.from("orders").select("*, order_items(*)").eq("user_id", userId!).order("created_at", { ascending: false });
+      if (import.meta.env.DEV) console.log("ORDERS QUERY", { userId, query: query.toString?.() });
+      const { data, error } = await query;
       if (error) {
         console.error("ORDER_ITEMS FETCH ERROR", {
           code: error?.code,
@@ -1053,6 +1051,7 @@ export const useOrders = (userId?: string) =>
         });
         throw error;
       }
+      if (import.meta.env.DEV) console.log("ORDERS QUERY RESULT", { dataLength: (data || []).length });
       return data;
     },
   });
